@@ -297,6 +297,17 @@ export class Visual implements IVisual {
             return lk === this.selectedKey ? linkOpacity : linkOpacity * 0.15;
         };
 
+        // Minimum ribbon height: tall enough to contain the largest active text.
+        // Uses the label font size (if labels are on) and/or the value font size
+        // (if values are on), plus 4 px padding (2 px each side), so text never
+        // appears clipped inside a thin ribbon. Ribbon proportionality is
+        // intentionally relaxed — small-value flows are scaled up to this floor.
+        const minRibbonHeight = Math.max(
+            1,
+            showLabels ? fontSize  + 4 : 1,
+            showValues ? vFontSize + 4 : 1
+        );
+
         // ── Links ─────────────────────────────────────────────────────────────
         const linkPaths = this.container
             .append("g")
@@ -307,7 +318,7 @@ export class Visual implements IVisual {
             .join("path")
             .attr("d", sankeyLinkHorizontal())
             .attr("stroke", d => color((d.source as LayoutNode).label))
-            .attr("stroke-width", d => Math.max(1, d.width ?? 1))
+            .attr("stroke-width", d => Math.max(minRibbonHeight, d.width ?? 1))
             .attr("opacity", d => linkOpacityFn(d))
             .style("cursor", "pointer");
 

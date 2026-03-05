@@ -12,6 +12,20 @@ The `.pbiviz` file for each release is attached to the corresponding [GitHub Rel
 
 ---
 
+## [1.0.2-beta.1] — 2026-03-05
+
+### Changed
+- **Minimum ribbon height** — ribbons now have a minimum vertical thickness
+  equal to the larger of the label font size and the value font size (whichever
+  is active), plus 4 px of padding (2 px each side). Previously, low-value
+  flows could produce ribbons too thin to read text against. Ribbon proportions
+  are intentionally relaxed for small-value flows that fall below the minimum —
+  the user explicitly does not require strict value-proportional widths.
+  Adjusting either font size in the format pane will dynamically update the
+  floor for all ribbons.
+
+---
+
 ## [1.0.1-beta.1] — 2026-03-05
 
 ### Changed
