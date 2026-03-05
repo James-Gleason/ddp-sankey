@@ -123,7 +123,7 @@ export class Visual implements IVisual {
         const { nodeSettings, linkSettings, labelSettings, valueSettings } = this.formattingSettings;
         const nodeWidth   = Math.max(4,  nodeSettings.nodeWidth.value);
         const nodePadding = Math.max(2,  nodeSettings.nodePadding.value);
-        const linkOpacity = Math.min(1, Math.max(0, linkSettings.linkOpacity.value));
+        const linkOpacity = Math.min(1, Math.max(0, linkSettings.linkOpacity.value / 100));
         const showLabels  = labelSettings.show.value;
         const fontFamily  = labelSettings.fontControl.fontFamily.value;
         const fontSize    = Math.max(8, labelSettings.fontControl.fontSize.value);

@@ -1,6 +1,10 @@
 "use strict";
 
+import powerbi from "powerbi-visuals-api";
 import { formattingSettings } from "powerbi-visuals-utils-formattingmodel";
+
+// ValidatorType is a const enum (Min=0, Max=1) in powerbi.visuals
+import ValidatorType = powerbi.visuals.ValidatorType;
 
 // ─── Nodes card ───────────────────────────────────────────────────────────────
 
@@ -31,11 +35,15 @@ class LinkSettingsCard extends formattingSettings.SimpleCard {
     public name: string = "linkSettings";
     public displayName: string = "Links";
 
-    public linkOpacity = new formattingSettings.NumUpDown({
+    public linkOpacity = new formattingSettings.Slider({
         name: "linkOpacity",
         displayName: "Link Opacity",
-        description: "Opacity of flow ribbons — 0 is transparent, 1 is solid",
-        value: 0.45
+        description: "Opacity of flow ribbons — 0% is fully transparent, 100% is fully solid",
+        value: 45,
+        options: {
+            minValue: { type: ValidatorType.Min, value: 0   },
+            maxValue: { type: ValidatorType.Max, value: 100 }
+        }
     });
 
     public slices = [this.linkOpacity];

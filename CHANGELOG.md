@@ -12,6 +12,17 @@ The `.pbiviz` file for each release is attached to the corresponding [GitHub Rel
 
 ---
 
+## [1.0.1-beta.1] — 2026-03-05
+
+### Changed
+- **Link Opacity control** — replaced the decimal number input (0–1) with a
+  percentage slider (0–100 %). The slider is easier to read and drag to a
+  precise value. The default is unchanged at 45 %. Stored values from
+  v1.0.0-beta.1 will need to be reset in the format pane (the old decimal
+  value, e.g. 0.45, is now interpreted as 0.45 % rather than 45 %).
+
+---
+
 ## [1.0.0-beta.1] — 2026-03-05
 
 First tagged pre-release. Establishes the baseline feature set built during
