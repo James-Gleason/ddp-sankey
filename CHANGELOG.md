@@ -1,0 +1,71 @@
+# Changelog
+
+All notable changes to DDP SanKey are documented here.
+
+Version format: `MAJOR.MINOR.PATCH-beta.N` during pre-release development.
+- **PATCH** — bug fixes
+- **MINOR** — new features (backward-compatible with existing reports)
+- **MAJOR** — breaking changes (data role renames, mapping changes, etc.)
+- **-beta.N** label dropped when the visual is declared production-ready
+
+The `.pbiviz` file for each release is attached to the corresponding [GitHub Release](https://github.com/James-Gleason/ddp-sankey/releases).
+
+---
+
+## [1.0.0-beta.1] — 2026-03-05
+
+First tagged pre-release. Establishes the baseline feature set built during
+initial development.
+
+### Added
+- **Multi-column path levels** — drag 2 or more columns into Path Levels; each
+  consecutive pair becomes a column of nodes with proportional ribbons between them
+- **Theme-aware node colours** — colours are drawn from `host.colorPalette` so
+  they automatically match the active Power BI report theme
+- **Blank value support** — null / empty cells at any level are displayed as a
+  `(Blank)` node rather than being silently dropped; blanks are unique per parent
+  path so sibling blanks never merge into a single node
+- **Cross-filtering** — clicking a node or ribbon filters all other visuals on the
+  page; Ctrl/Cmd-click for multi-select; clicking the background clears the filter
+- **Zoom & pan** — scroll wheel to zoom, drag to pan, double-click to reset to
+  the original view
+- **Field-well ordering** — top-to-bottom column order in the Path Levels field
+  well maps directly to left-to-right layout in the visual
+- **Format pane — Nodes card** — Node Width (px), Node Padding (px)
+- **Format pane — Links card** — Link Opacity (0–1)
+- **Format pane — Labels card** — Show/Hide toggle, font family/size/bold/italic/
+  underline, font colour
+- **Format pane — Values card** — Show/Hide toggle, Show On (Nodes or Ribbons),
+  Position (Inside / Outside / Auto), font family/size/bold/italic/underline,
+  font colour
+
+### Fixed
+- Column reordering in the field well was not reflected in the visual layout;
+  resolved by switching from `table` to `categorical` dataViewMapping which
+  preserves field-well column order
+- Nodes with the same display name at different hierarchy levels were incorrectly
+  merged by d3-sankey; resolved by prefixing all internal node keys with their
+  level index (`${level}\x01${label}`)
+- `(Blank)` nodes at the same level but under different parent paths were merged
+  into a single node; resolved by embedding the parent's disambiguated key into
+  the blank node's internal key while keeping the display label as `(Blank)`
+
+---
+
+<!-- Template for future entries:
+
+## [X.Y.Z-beta.N] — YYYY-MM-DD
+
+### Added
+-
+
+### Changed
+-
+
+### Fixed
+-
+
+### Removed
+-
+
+-->
