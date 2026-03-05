@@ -108,6 +108,54 @@ function reStackRibbons(graph: LayoutGraph, minH: number): void {
     }
 }
 
+/**
+ * After reStackRibbons() has potentially grown node heights, nodes within the
+ * same column may now overlap each other.  This pass groups nodes by column,
+ * sorts them top-to-bottom, and for each pair of adjacent nodes pushes the
+ * lower one down (along with its ribbon endpoints) until the inter-node gap
+ * is at least `padding` pixels — matching the nodePadding the user configured.
+ *
+ * Ribbon endpoints are translated by the same delta so that ribbons stay
+ * connected to their (now-shifted) nodes.
+ */
+function resolveColumnOverlaps(graph: LayoutGraph, padding: number): void {
+    // Group nodes by column — d3-sankey assigns the same x0 to all nodes in a column
+    const columns = new Map<number, LayoutNode[]>();
+    for (const nd of graph.nodes) {
+        const node = nd as LayoutNode;
+        const col  = Math.round(node.x0 ?? 0);   // round to avoid float-key mismatches
+        if (!columns.has(col)) columns.set(col, []);
+        columns.get(col)!.push(node);
+    }
+
+    columns.forEach(col => {
+        // Sort top-to-bottom within the column
+        col.sort((a, b) => (a.y0 ?? 0) - (b.y0 ?? 0));
+
+        for (let i = 1; i < col.length; i++) {
+            const prev  = col[i - 1];
+            const curr  = col[i];
+            const minY0 = (prev.y1 ?? 0) + padding;
+            const delta = minY0 - (curr.y0 ?? 0);
+
+            if (delta <= 0) continue;   // already enough space — nothing to do
+
+            // Shift this node downward
+            curr.y0 = (curr.y0 ?? 0) + delta;
+            curr.y1 = (curr.y1 ?? 0) + delta;
+
+            // Shift the ribbon endpoints that sit at this node by the same delta
+            // so that ribbons remain correctly attached after the node moves.
+            for (const lnk of (curr.sourceLinks ?? []) as LayoutLink[]) {
+                lnk.y0 = (lnk.y0 ?? 0) + delta;
+            }
+            for (const lnk of (curr.targetLinks ?? []) as LayoutLink[]) {
+                lnk.y1 = (lnk.y1 ?? 0) + delta;
+            }
+        }
+    });
+}
+
 // ─── Visual ───────────────────────────────────────────────────────────────────
 
 export class Visual implements IVisual {
@@ -464,6 +512,9 @@ export class Visual implements IVisual {
         // This runs whenever minRibbonHeight could actually inflate something.
         if (minRibbonHeight > 1) {
             reStackRibbons(graph, minRibbonHeight);
+            // After nodes are expanded, nodes in the same column may overlap.
+            // Resolve by pushing lower nodes down (with their ribbon endpoints).
+            resolveColumnOverlaps(graph, nodePadding);
         }
 
         // Use report theme colours keyed by display label so the same name gets the same colour

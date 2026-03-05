@@ -12,6 +12,29 @@ The `.pbiviz` file for each release is attached to the corresponding [GitHub Rel
 
 ---
 
+## [1.2.2-beta.1] — 2026-03-05
+
+### Fixed
+- **Node overlap after automatic height expansion** — `reStackRibbons()` expanded
+  node heights downward but did not move the nodes below out of the way, causing
+  nodes in the same column to overlap when font-driven `minRibbonHeight` inflated
+  any of their ribbons. A new `resolveColumnOverlaps()` pass runs immediately after
+  `reStackRibbons()` and corrects this:
+  - Groups nodes by column (same `x0`).
+  - Sorts each column top-to-bottom.
+  - For each pair of vertically adjacent nodes, if the upper node's `y1` encroaches
+    on the lower node's `y0` by less than `nodePadding`, the lower node (and every
+    node below it in the same column) is shifted down by exactly the amount needed
+    to restore the configured gap.
+  - All ribbon endpoints (`link.y0` for source links, `link.y1` for target links)
+    at the shifted node are translated by the same delta so ribbons stay correctly
+    attached after the node moves.
+  - Node padding now behaves consistently whether or not `minRibbonHeight` is active;
+    the format-pane **Node Padding** setting no longer needs to be manually increased
+    to compensate for the height expansion.
+
+---
+
 ## [1.2.1-beta.1] — 2026-03-05
 
 ### Fixed
