@@ -7,8 +7,8 @@
     "visualClassName": "Visual",
     "version": "1.0.1.0",
     "description": "Sankey flow diagram showing source → target flows weighted by value",
-    "supportUrl": "https://github.com/James-Gleason/ddp-sankey/issues",
-    "gitHubUrl": "https://github.com/James-Gleason/ddp-sankey"
+    "supportUrl": "https://github.com/illegal-request/ddp-sankey/issues",
+    "gitHubUrl": "https://github.com/illegal-request/ddp-sankey"
   },
   "apiVersion": "5.9.0",
   "author": {

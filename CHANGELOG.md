@@ -8,7 +8,7 @@ Version format: `MAJOR.MINOR.PATCH-beta.N` during pre-release development.
 - **MAJOR** — breaking changes (data role renames, mapping changes, etc.)
 - **-beta.N** label dropped when the visual is declared production-ready
 
-The `.pbiviz` file for each release is attached to the corresponding [GitHub Release](https://github.com/James-Gleason/ddp-sankey/releases).
+The `.pbiviz` file for each release is attached to the corresponding [GitHub Release](https://github.com/illegal-request/ddp-sankey/releases).
 
 ---
 
