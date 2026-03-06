@@ -12,6 +12,21 @@ The `.pbiviz` file for each release is attached to the corresponding [GitHub Rel
 
 ---
 
+## [1.2.5-beta.1] — 2026-03-05
+
+### Removed
+- **Color Value field well** — the optional second measure that drove ribbon
+  color via a continuous gradient scale has been removed. The feature did not
+  behave as expected: weighted-average aggregation across rows produced
+  misleading colors for rate-type metrics, and the gradient legend added visual
+  clutter without clear benefit. Ribbons now always use report-theme colors
+  derived from the source node (existing behaviour from v1.2.3 and earlier).
+  Removing the field also removes the **Color Scale** format card. Reports that
+  had a Color Value field bound will silently drop that binding on next open;
+  no other settings are affected.
+
+---
+
 ## [1.2.4-beta.1] — 2026-03-05
 
 ### Fixed

@@ -17,7 +17,6 @@ import {
 } from "d3-sankey";
 import { select, Selection } from "d3-selection";
 import { zoom, zoomIdentity, ZoomBehavior } from "d3-zoom";
-import { scaleLinear } from "d3-scale";
 
 import "./../style/visual.less";
 
@@ -225,7 +224,6 @@ export class Visual implements IVisual {
     private svg:         Selection<SVGSVGElement,  unknown, null, undefined>;
     private zoomLayer:   Selection<SVGGElement,    unknown, null, undefined>;
     private container:   Selection<SVGGElement,    unknown, null, undefined>;
-    private legendLayer: Selection<SVGGElement,    unknown, null, undefined>;
     private errorText:   Selection<SVGTextElement, unknown, null, undefined>;
     private zoomBehavior: ZoomBehavior<SVGSVGElement, unknown>;
 
@@ -255,11 +253,6 @@ export class Visual implements IVisual {
         this.container = this.zoomLayer
             .append<SVGGElement>("g")
             .classed("container", true);
-
-        // legendLayer sits outside zoomLayer so it stays fixed while the diagram pans/zooms
-        this.legendLayer = this.svg
-            .append<SVGGElement>("g")
-            .classed("legendLayer", true);
 
         this.errorText = this.svg
             .append<SVGTextElement>("text")
@@ -300,7 +293,6 @@ export class Visual implements IVisual {
 
         this.svg.attr("width", width).attr("height", height);
         this.container.selectAll("*").remove();
-        this.legendLayer.selectAll("*").remove();
         this.errorText.text("");
 
         // ── Populate formatting settings from the format pane ──────────────────
@@ -309,7 +301,7 @@ export class Visual implements IVisual {
 
         const {
             nodeSettings, linkSettings, labelSettings,
-            valueSettings, colorScaleSettings
+            valueSettings
         } = this.formattingSettings;
 
         const nodeWidth   = Math.max(4, nodeSettings.nodeWidth.value);
@@ -334,13 +326,6 @@ export class Visual implements IVisual {
         const vUnderline  = valueSettings.fontControl.underline?.value ?? false;
         const vFontColor  = valueSettings.fontColor.value?.value       ?? "#333333";
 
-        const showColorScale = colorScaleSettings.show.value;
-        const colorScheme    = String(colorScaleSettings.scheme.value?.value         ?? "sequential");
-        const csLowColor     = colorScaleSettings.lowColor.value?.value              ?? "#c6dbef";
-        const csMidColor     = colorScaleSettings.midColor.value?.value              ?? "#f7f7f7";
-        const csHighColor    = colorScaleSettings.highColor.value?.value             ?? "#08519c";
-        const legendPos      = String(colorScaleSettings.legendPosition.value?.value ?? "bottom-right");
-
         this.currentLinkOpacity = linkOpacity;
 
         // ── Guard: no data ─────────────────────────────────────────────────────
@@ -359,12 +344,10 @@ export class Visual implements IVisual {
             return;
         }
 
-        // Identify value series by data role — colorValue is optional
+        // Identify the value series by data role
         let valueSeries: powerbi.DataViewValueColumn | undefined;
-        let colorSeries: powerbi.DataViewValueColumn | undefined;
         for (const s of categorical.values) {
-            if (s.source.roles?.["value"])      valueSeries = s;
-            if (s.source.roles?.["colorValue"]) colorSeries = s;
+            if (s.source.roles?.["value"]) valueSeries = s;
         }
 
         if (!valueSeries) {
@@ -374,15 +357,11 @@ export class Visual implements IVisual {
 
         // ── Parse rows → aggregate links, build selection ID maps ──────────────
         // Blank/null values are treated as the label "(Blank)" rather than dropped.
-        const linkMap            = new Map<string, number>();
-        const nodeSet            = new Set<string>();
-        const nodeSelIds         = new Map<string, powerbi.visuals.ISelectionId[]>();
-        const linkSelIds         = new Map<string, powerbi.visuals.ISelectionId[]>();
-        // For color value: accumulate weighted sum + total weight (= primary value)
-        // so the per-link color value is a weighted average (weight = flow volume).
-        const linkColorWeightSum = new Map<string, number>();
-        const linkColorWeight    = new Map<string, number>();
-        const rowCount           = levelCats[0].values.length;
+        const linkMap    = new Map<string, number>();
+        const nodeSet    = new Set<string>();
+        const nodeSelIds = new Map<string, powerbi.visuals.ISelectionId[]>();
+        const linkSelIds = new Map<string, powerbi.visuals.ISelectionId[]>();
+        const rowCount   = levelCats[0].values.length;
 
         for (let r = 0; r < rowCount; r++) {
             const val = Number(valueSeries.values[r]) || 0;
@@ -431,53 +410,12 @@ export class Visual implements IVisual {
                 if (!linkSelIds.has(lnkKey)) linkSelIds.set(lnkKey, []);
                 linkSelIds.get(lnkKey)!.push(selId);
 
-                // Accumulate color value (weighted average by primary flow volume)
-                if (colorSeries) {
-                    const cv = Number(colorSeries.values[r]);
-                    if (!isNaN(cv)) {
-                        linkColorWeightSum.set(lnkKey, (linkColorWeightSum.get(lnkKey) ?? 0) + cv * val);
-                        linkColorWeight.set(lnkKey,    (linkColorWeight.get(lnkKey)    ?? 0) + val);
-                    }
-                }
             }
         }
 
         if (linkMap.size === 0) {
             this.showError(width, height, "No valid flows found. Ensure Value > 0 and consecutive levels differ.");
             return;
-        }
-
-        // Compute weighted-average color value per link key
-        const linkColorMap = new Map<string, number>();
-        linkColorWeightSum.forEach((wsum, key) => {
-            const wtotal = linkColorWeight.get(key) ?? 0;
-            if (wtotal > 0) linkColorMap.set(key, wsum / wtotal);
-        });
-
-        // ── Build color scale ──────────────────────────────────────────────────
-        const hasColorScale = !!colorSeries && showColorScale && linkColorMap.size > 0;
-        let colorScaleFn: ((v: number) => string) | undefined;
-        let colorMin = 0;
-        let colorMax = 1;
-
-        if (hasColorScale) {
-            const cvals = Array.from(linkColorMap.values());
-            colorMin = Math.min(...cvals);
-            colorMax = Math.max(...cvals);
-            if (colorMin === colorMax) colorMax = colorMin + 1; // avoid degenerate scale
-
-            if (colorScheme === "diverging") {
-                const mid = (colorMin + colorMax) / 2;
-                const sc  = scaleLinear<string>()
-                    .domain([colorMin, mid, colorMax])
-                    .range([csLowColor, csMidColor, csHighColor]);
-                colorScaleFn = v => sc(v);
-            } else {
-                const sc = scaleLinear<string>()
-                    .domain([colorMin, colorMax])
-                    .range([csLowColor, csHighColor]);
-                colorScaleFn = v => sc(v);
-            }
         }
 
         // ── Build Sankey input ─────────────────────────────────────────────────
@@ -651,16 +589,8 @@ export class Visual implements IVisual {
             return downstreamSet.has(src) ? linkOpacity : linkOpacity * 0.15;
         };
 
-        // Ribbon stroke color: color scale (if active) else theme color by source label
-        const ribbonColor = (d: LayoutLink): string => {
-            if (colorScaleFn) {
-                const src = (d.source as LayoutNode).name;
-                const tgt = (d.target as LayoutNode).name;
-                const cv  = linkColorMap.get(`${src}\x00${tgt}`);
-                if (cv !== undefined) return colorScaleFn(cv);
-            }
-            return color((d.source as LayoutNode).label);
-        };
+        // Ribbon color: theme color keyed by source node label
+        const ribbonColor = (d: LayoutLink): string => color((d.source as LayoutNode).label);
 
         // ── Links ─────────────────────────────────────────────────────────────
         // Rendered as filled closed paths (not stroked centrelines) so the ribbon
@@ -678,16 +608,7 @@ export class Visual implements IVisual {
 
         linkPaths
             .append("title")
-            .text(d => {
-                const src  = (d.source as LayoutNode).name;
-                const tgt  = (d.target as LayoutNode).name;
-                const cv   = linkColorMap.get(`${src}\x00${tgt}`);
-                const base = `${(d.source as LayoutNode).label} \u2192 ${(d.target as LayoutNode).label}\n${d.value.toLocaleString()}`;
-                if (cv !== undefined && colorSeries) {
-                    return `${base}\n${colorSeries.source.displayName}: ${cv.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
-                }
-                return base;
-            });
+            .text(d => `${(d.source as LayoutNode).label} \u2192 ${(d.target as LayoutNode).label}\n${d.value.toLocaleString()}`);
 
         linkPaths.on("click", (event: MouseEvent, d: LayoutLink) => {
             const lk = `${(d.source as LayoutNode).name}\x00${(d.target as LayoutNode).name}`;
@@ -812,97 +733,6 @@ export class Visual implements IVisual {
                 .text(d => d.value.toLocaleString());
         }
 
-        // ── Color scale legend ─────────────────────────────────────────────────
-        if (hasColorScale && colorScaleFn) {
-            const fieldName = colorSeries!.source.displayName;
-            const barW      = 150;
-            const barH      = 14;
-            const lPad      = 8;
-            const legendW   = barW + lPad * 2;
-            const titleH    = 13;
-            const labelH    = 12;
-            const legendH   = lPad + titleH + 4 + barH + 4 + labelH + lPad;
-
-            let lx: number, ly: number;
-            switch (legendPos) {
-                case "top-left":    lx = 8;                   ly = 8;                    break;
-                case "top-right":   lx = width - legendW - 8; ly = 8;                    break;
-                case "bottom-left": lx = 8;                   ly = height - legendH - 8; break;
-                default:            lx = width - legendW - 8; ly = height - legendH - 8; break; // bottom-right
-            }
-
-            // SVG gradient definition
-            const gradId = "colorScaleGrad";
-            const defs   = this.legendLayer.append("defs");
-            const grad   = defs.append("linearGradient")
-                .attr("id", gradId)
-                .attr("x1", "0%").attr("x2", "100%")
-                .attr("y1", "0%").attr("y2", "0%");
-
-            // 11 colour stops across the full range
-            for (let i = 0; i <= 10; i++) {
-                const t = i / 10;
-                const v = colorMin + t * (colorMax - colorMin);
-                grad.append("stop")
-                    .attr("offset",     `${i * 10}%`)
-                    .attr("stop-color", colorScaleFn(v));
-            }
-
-            const legendG = this.legendLayer
-                .append("g")
-                .attr("transform", `translate(${lx},${ly})`);
-
-            // Background panel
-            legendG.append("rect")
-                .attr("width",        legendW)
-                .attr("height",       legendH)
-                .attr("rx",           4)
-                .attr("fill",         "white")
-                .attr("fill-opacity", 0.85)
-                .attr("stroke",       "#ccc")
-                .attr("stroke-width", 0.5);
-
-            // Field name title
-            legendG.append("text")
-                .attr("x",           legendW / 2)
-                .attr("y",           lPad + titleH - 2)
-                .attr("text-anchor", "middle")
-                .attr("font-family", "sans-serif")
-                .attr("font-size",   "11px")
-                .attr("fill",        "#333")
-                .text(fieldName);
-
-            // Gradient bar
-            const barY = lPad + titleH + 4;
-            legendG.append("rect")
-                .attr("x",      lPad)
-                .attr("y",      barY)
-                .attr("width",  barW)
-                .attr("height", barH)
-                .attr("fill",   `url(#${gradId})`)
-                .attr("rx",     2);
-
-            // Min / max value labels
-            const labelY = barY + barH + 4 + labelH - 2;
-
-            legendG.append("text")
-                .attr("x",           lPad)
-                .attr("y",           labelY)
-                .attr("text-anchor", "start")
-                .attr("font-family", "sans-serif")
-                .attr("font-size",   "10px")
-                .attr("fill",        "#555")
-                .text(colorMin.toLocaleString(undefined, { maximumFractionDigits: 2 }));
-
-            legendG.append("text")
-                .attr("x",           lPad + barW)
-                .attr("y",           labelY)
-                .attr("text-anchor", "end")
-                .attr("font-family", "sans-serif")
-                .attr("font-size",   "10px")
-                .attr("fill",        "#555")
-                .text(colorMax.toLocaleString(undefined, { maximumFractionDigits: 2 }));
-        }
     }
 
     // ── Format pane ───────────────────────────────────────────────────────────
