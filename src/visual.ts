@@ -16,7 +16,7 @@ import {
     SankeyGraph
 } from "d3-sankey";
 import { select, Selection } from "d3-selection";
-import { zoom, zoomIdentity, ZoomBehavior } from "d3-zoom";
+import { zoom, zoomIdentity, ZoomBehavior, ZoomTransform } from "d3-zoom";
 
 import "./../style/visual.less";
 
@@ -238,6 +238,9 @@ export class Visual implements IVisual {
     private selectionType:     "none" | "node" | "link" = "none";
     private selectedKey:       string = "";
     private currentLinkOpacity: number = 0.45;
+    // Most-recent fit-to-viewport transform — updated on every render and used
+    // as the initial zoom state and the double-click reset target.
+    private fitTransform: ZoomTransform = zoomIdentity;
 
     constructor(options: VisualConstructorOptions) {
         this.host = options.host;
@@ -277,7 +280,7 @@ export class Visual implements IVisual {
         this.svg.call(this.zoomBehavior);
 
         this.svg.on("dblclick.zoom", () => {
-            this.svg.call(this.zoomBehavior.transform, zoomIdentity);
+            this.svg.call(this.zoomBehavior.transform, this.fitTransform);
         });
 
         // Clear cross-filter when user clicks empty canvas
@@ -564,6 +567,25 @@ export class Visual implements IVisual {
             // After nodes are expanded, nodes in the same column may overlap.
             // Resolve by pushing lower nodes down (with their ribbon endpoints).
             resolveColumnOverlaps(graph, nodePadding);
+        }
+
+        // ── Fit-to-viewport transform ──────────────────────────────────────────
+        // reStackRibbons / resolveColumnOverlaps can push nodes below innerH.
+        // Compute the actual layout bottom, then apply a zoom transform that
+        // scales the whole diagram down just enough to keep everything visible.
+        //
+        // Horizontal content is always exactly viewport-width by construction
+        // (margin.left + innerW + margin.right == width), so only vertical
+        // overflow ever needs correcting.  When the content fits (fitK == 1)
+        // the resulting transform is the identity — no zoom is applied.
+        {
+            const actualMaxY = graph.nodes.reduce((m, n) => Math.max(m, n.y1 ?? 0), 0);
+            const totalH     = margin.top + actualMaxY + margin.bottom;
+            const fitK       = Math.min(1, height / totalH);
+            // Centre the (possibly narrower) scaled content horizontally.
+            const fitTx      = width * (1 - fitK) / 2;
+            this.fitTransform = zoomIdentity.translate(fitTx, 0).scale(fitK);
+            this.svg.call(this.zoomBehavior.transform, this.fitTransform);
         }
 
         // Use report theme colours keyed by display label so the same name gets the same colour

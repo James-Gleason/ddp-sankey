@@ -12,6 +12,31 @@ The `.pbiviz` file for each release is attached to the corresponding [GitHub Rel
 
 ---
 
+## [1.2.10-beta.1] — 2026-03-06
+
+### Added
+- **Auto fit-to-viewport on load** — when the Sankey diagram is taller than the
+  visual container (which can happen when `resolveColumnOverlaps()` pushes nodes
+  below the bottom edge to honour `nodePadding`), the initial view is now
+  automatically scaled so the entire diagram is visible without the user having
+  to scroll or zoom out manually.
+
+  Behaviour:
+  - After every `update()` call the renderer measures the actual bottom edge of
+    the lowest node (`actualMaxY`) and computes a fit scale
+    `fitK = min(1, viewportHeight / totalHeight)`.  If all content fits, `fitK`
+    equals 1 and the view is unchanged.  Otherwise, the diagram is scaled down
+    uniformly so the full height is visible.
+  - A horizontal centering translation `fitTx = width × (1 − fitK) / 2` is
+    applied at the same time so the diagram remains centred as it shrinks.
+  - The fit transform is stored in `this.fitTransform` and used as the reset
+    target when the user double-clicks — double-clicking always returns to the
+    fit view rather than the raw 1:1 identity view.
+  - The visual never scales *up* (`fitK ≤ 1`), so diagrams that fit comfortably
+    are unaffected.
+
+---
+
 ## [1.2.9-beta.1] — 2026-03-05
 
 ### Changed
