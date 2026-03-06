@@ -12,6 +12,16 @@ The `.pbiviz` file for each release is attached to the corresponding [GitHub Rel
 
 ---
 
+## [1.2.14-beta.1] — 2026-03-06
+
+### Fixed
+- **Selection toggle** — clicking an already-selected node or ribbon now
+  deselects it (clearing the cross-filter) instead of re-selecting it.
+  Previously a second click called `selectionManager.select()` again, leaving
+  the visual and other report elements out of sync.
+
+---
+
 ## [1.2.13-beta.1] — 2026-03-06
 
 ### Fixed

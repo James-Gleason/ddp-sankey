@@ -723,9 +723,16 @@ export class Visual implements IVisual {
 
         linkPaths.on("click", (event: MouseEvent, d: LayoutLink) => {
             const lk = `${(d.source as LayoutNode).name}\x00${(d.target as LayoutNode).name}`;
-            this.selectionType = "link";
-            this.selectedKey   = lk;
-            this.selectionManager.select(linkSelIds.get(lk) ?? [], event.ctrlKey || event.metaKey);
+            if (this.selectionType === "link" && this.selectedKey === lk) {
+                // Second click on the same ribbon — deselect
+                this.selectionType = "none";
+                this.selectedKey   = "";
+                this.selectionManager.clear();
+            } else {
+                this.selectionType = "link";
+                this.selectedKey   = lk;
+                this.selectionManager.select(linkSelIds.get(lk) ?? [], event.ctrlKey || event.metaKey);
+            }
             refreshDownstream();
             nodeGroups.select<SVGRectElement>("rect").attr("opacity", nodeOpacity);
             linkPaths.attr("opacity", linkOpacityFn);
@@ -756,9 +763,16 @@ export class Visual implements IVisual {
             .text(d => `${d.label}\n${(d.value ?? 0).toLocaleString()}`);
 
         nodeGroups.on("click", (event: MouseEvent, d: LayoutNode) => {
-            this.selectionType = "node";
-            this.selectedKey   = d.name;
-            this.selectionManager.select(nodeSelIds.get(d.name) ?? [], event.ctrlKey || event.metaKey);
+            if (this.selectionType === "node" && this.selectedKey === d.name) {
+                // Second click on the same node — deselect
+                this.selectionType = "none";
+                this.selectedKey   = "";
+                this.selectionManager.clear();
+            } else {
+                this.selectionType = "node";
+                this.selectedKey   = d.name;
+                this.selectionManager.select(nodeSelIds.get(d.name) ?? [], event.ctrlKey || event.metaKey);
+            }
             refreshDownstream();
             nodeGroups.select<SVGRectElement>("rect").attr("opacity", nodeOpacity);
             linkPaths.attr("opacity", linkOpacityFn);
