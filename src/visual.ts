@@ -308,7 +308,7 @@ export class Visual implements IVisual {
 
         const {
             nodeSettings, linkSettings, labelSettings,
-            valueSettings
+            valueSettings, columnTotals: colTotSettings
         } = this.formattingSettings;
 
         const nodeWidth   = Math.max(4, nodeSettings.nodeWidth.value);
@@ -334,6 +334,16 @@ export class Visual implements IVisual {
         const vItalic     = valueSettings.fontControl.italic?.value    ?? false;
         const vUnderline  = valueSettings.fontControl.underline?.value ?? false;
         const vFontColor  = valueSettings.fontColor.value?.value       ?? "#333333";
+
+        const showColTotals  = colTotSettings.show.value;
+        const colTotPos      = String(colTotSettings.position.value?.value  ?? "above");
+        const colTotAbove    = colTotPos === "above";
+        const ctFontFamily   = colTotSettings.fontControl.fontFamily.value;
+        const ctFontSize     = Math.max(8, colTotSettings.fontControl.fontSize.value);
+        const ctBold         = colTotSettings.fontControl.bold?.value      ?? true;
+        const ctItalic       = colTotSettings.fontControl.italic?.value    ?? false;
+        const ctUnderline    = colTotSettings.fontControl.underline?.value ?? false;
+        const ctFontColor    = colTotSettings.fontColor.value?.value       ?? "#333333";
 
         const labelBg             = labelSettings.showBackground.value;
         const labelBgColor        = labelSettings.backgroundColor.value?.value  ?? "#ffffff";
@@ -496,7 +506,15 @@ export class Visual implements IVisual {
         const lbExtra  = labelBgActive ? PILL_PAD_H : 0;
         const leftPad  = (showLabels && labelOutside) ? leftLabelMaxW  + labelGap + lbExtra : 8;
         const rightPad = (showLabels && labelOutside) ? rightLabelMaxW + labelGap + lbExtra : 8;
-        const margin   = { top: 8, right: Math.max(8, rightPad), bottom: 8, left: Math.max(8, leftPad) };
+        // When column totals are enabled, reserve a strip of height ctH (font + 16 px
+        // padding — 8 px each side) at whichever edge the totals are positioned on.
+        const ctH      = showColTotals ? ctFontSize + 16 : 0;
+        const margin   = {
+            top:    8 + (showColTotals &&  colTotAbove ? ctH : 0),
+            right:  Math.max(8, rightPad),
+            bottom: 8 + (showColTotals && !colTotAbove ? ctH : 0),
+            left:   Math.max(8, leftPad)
+        };
         const innerW   = Math.max(10, width  - margin.left - margin.right);
         const innerH   = Math.max(10, height - margin.top  - margin.bottom);
 
@@ -901,6 +919,57 @@ export class Visual implements IVisual {
                         .attr("ry",    (bb.height + PILL_PAD_V * 2) / 2);
                 });
             }
+        }
+
+        // ── Column totals ──────────────────────────────────────────────────────
+        // Sums all node values at each column depth and renders a single total
+        // label centred over each column in the reserved strip above or below.
+        //
+        // node.value (set by d3-sankey) = max(sum of in-flows, sum of out-flows).
+        // Summing across all nodes at the same depth gives the total throughput
+        // at that stage — the "total number of things" the user asked for.
+        //
+        // The container is translated by (margin.left, margin.top), so the Sankey
+        // nodes sit in the range y ∈ [0, innerH] in container coordinates.
+        // Negative y goes into the top margin; y > innerH goes into the bottom margin.
+        if (showColTotals) {
+            // Aggregate per depth — nodes in the same column share the same x0/x1
+            const colTotMap = new Map<number, { total: number; x0: number; x1: number }>();
+            for (const nd of graph.nodes) {
+                const dep   = nd.depth ?? 0;
+                const entry = colTotMap.get(dep);
+                if (entry) {
+                    entry.total += nd.value ?? 0;
+                } else {
+                    colTotMap.set(dep, { total: nd.value ?? 0, x0: nd.x0 ?? 0, x1: nd.x1 ?? 0 });
+                }
+            }
+
+            const colTotData = Array.from(colTotMap.values())
+                .sort((a, b) => a.x0 - b.x0);   // ensure left-to-right order
+
+            // Centre vertically in the reserved strip.  The strip is ctH px tall;
+            // centering the text at ±ctH/2 leaves 8 px of breathing room each side.
+            const ctY = colTotAbove ? -(ctH / 2) : innerH + ctH / 2;
+
+            this.container
+                .append("g")
+                .classed("column-totals", true)
+                .attr("pointer-events", "none")
+                .selectAll<SVGTextElement, { total: number; x0: number; x1: number }>("text")
+                .data(colTotData)
+                .join("text")
+                .attr("x",                 d => (d.x0 + d.x1) / 2)
+                .attr("y",                 ctY)
+                .attr("text-anchor",       "middle")
+                .attr("dominant-baseline", "middle")
+                .attr("font-family",       ctFontFamily)
+                .attr("font-size",         `${ctFontSize}px`)
+                .attr("font-weight",       ctBold      ? "bold"      : "normal")
+                .attr("font-style",        ctItalic    ? "italic"    : "normal")
+                .attr("text-decoration",   ctUnderline ? "underline" : "none")
+                .attr("fill",              ctFontColor)
+                .text(d => d.total.toLocaleString());
         }
 
     }

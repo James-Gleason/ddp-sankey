@@ -12,6 +12,34 @@ The `.pbiviz` file for each release is attached to the corresponding [GitHub Rel
 
 ---
 
+## [1.2.11-beta.1] — 2026-03-06
+
+### Added
+- **Column Totals** — a new **Column Totals** format card adds an optional strip
+  of summary numbers above or below the Sankey diagram, one total per stage
+  (column).  Each total is the sum of `node.value` across all nodes at that
+  column depth, which equals the total flow volume passing through that stage.
+
+  Use this to understand the overall scale at each step of the flow and then
+  read the nodes in the diagram to see how that total decomposes.
+
+  Controls:
+  - **Show Column Totals** — header toggle; off by default.
+  - **Position** — *Above* (default) or *Below* the diagram.
+  - **Font** — family, size, bold (default on), italic, underline.
+  - **Font Color** — default dark grey (#333333).
+
+  Implementation: when enabled, a reserved strip of height `fontSize + 16 px`
+  is added to the top or bottom margin before layout runs, so the totals never
+  overlap the Sankey content.  After layout, nodes are grouped by `depth`
+  (d3-sankey's column index), values are summed per group, and one `<text>`
+  element is rendered centred over each column's x-midpoint.  The totals are
+  inside the zoom layer so they scale and pan in sync with the diagram.
+  Double-click reset and the fit-to-viewport logic already account for the
+  extra margin.
+
+---
+
 ## [1.2.10-beta.1] — 2026-03-06
 
 ### Added

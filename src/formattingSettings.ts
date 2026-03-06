@@ -239,18 +239,86 @@ class ValueSettingsCard extends formattingSettings.SimpleCard {
     public slices = [this.target, this.position, this.fontControl, this.fontColor, this.showBackground, this.backgroundColor, this.backgroundTransparency];
 }
 
+// ─── Column Totals card ───────────────────────────────────────────────────────
+
+const colTotPositionItems = [
+    { displayName: "Above", value: "above" },
+    { displayName: "Below", value: "below" }
+];
+
+class ColumnTotalsSettingsCard extends formattingSettings.SimpleCard {
+    public name: string = "columnTotals";
+    public displayName: string = "Column Totals";
+
+    public show = new formattingSettings.ToggleSwitch({
+        name: "show",
+        displayName: "Show Column Totals",
+        value: false
+    });
+
+    public position = new formattingSettings.ItemDropdown({
+        name: "position",
+        displayName: "Position",
+        description: "Above — totals appear in a strip above the diagram.  Below — totals appear below.",
+        items: colTotPositionItems,
+        value: colTotPositionItems[0]   // default: Above
+    });
+
+    // Native PBI font control: family picker + size input + B / I / U buttons
+    public fontControl = new formattingSettings.FontControl({
+        name: "fontControl",
+        displayName: "Font",
+        fontFamily: new formattingSettings.FontPicker({
+            name: "fontFamily",
+            displayName: "Font",
+            value: "Segoe UI, wf_segoe-ui_normal, helvetica, arial, sans-serif"
+        }),
+        fontSize: new formattingSettings.NumUpDown({
+            name: "fontSize",
+            displayName: "Text Size",
+            value: 12
+        }),
+        bold: new formattingSettings.ToggleSwitch({
+            name: "bold",
+            displayName: "Bold",
+            value: true
+        }),
+        italic: new formattingSettings.ToggleSwitch({
+            name: "italic",
+            displayName: "Italic",
+            value: false
+        }),
+        underline: new formattingSettings.ToggleSwitch({
+            name: "underline",
+            displayName: "Underline",
+            value: false
+        })
+    });
+
+    public fontColor = new formattingSettings.ColorPicker({
+        name: "fontColor",
+        displayName: "Font Color",
+        value: { value: "#333333" }
+    });
+
+    public topLevelSlice = this.show;
+    public slices = [this.position, this.fontControl, this.fontColor];
+}
+
 // ─── Root model ───────────────────────────────────────────────────────────────
 
 export class VisualFormattingSettingsModel extends formattingSettings.Model {
-    public nodeSettings  = new NodeSettingsCard();
-    public linkSettings  = new LinkSettingsCard();
-    public labelSettings = new LabelSettingsCard();
-    public valueSettings = new ValueSettingsCard();
+    public nodeSettings   = new NodeSettingsCard();
+    public linkSettings   = new LinkSettingsCard();
+    public labelSettings  = new LabelSettingsCard();
+    public valueSettings  = new ValueSettingsCard();
+    public columnTotals   = new ColumnTotalsSettingsCard();
 
     public cards = [
         this.nodeSettings,
         this.linkSettings,
         this.labelSettings,
-        this.valueSettings
+        this.valueSettings,
+        this.columnTotals
     ];
 }
