@@ -12,6 +12,25 @@ The `.pbiviz` file for each release is attached to the corresponding [GitHub Rel
 
 ---
 
+## [1.2.8-beta.1] — 2026-03-05
+
+### Changed
+- **Outermost column labels now face outward; links fill the full horizontal space** —
+  previously all node labels went *inward* (left-half nodes labelled to the right,
+  right-half nodes labelled to the left), which crowded labels into the link area
+  and still left the outermost nodes near the visual edges with no guaranteed
+  clearance for their text.  The new layout separates concerns:
+  - **Leftmost column** labels face left, into a dedicated left margin sized to the
+    widest label in that column (`labelWidth + 6 px gap + pill padding if active`).
+  - **Rightmost column** labels face right, into a matching right margin.
+  - **Intermediate columns** keep the existing inward behaviour (left-half → right,
+    right-half → left).
+  - The Sankey layout occupies the space *between* the two outer margins, so links
+    span that full width independently of label length.  Adding longer node names
+    widens the margin rather than squeezing the link area.
+
+---
+
 ## [1.2.7-beta.1] — 2026-03-05
 
 ### Changed

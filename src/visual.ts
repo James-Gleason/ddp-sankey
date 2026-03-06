@@ -469,11 +469,29 @@ export class Visual implements IVisual {
             showValues ? vFontSize + (valueBgActive ? pillH : 4) : 1
         );
 
-        // ── Layout ────────────────────────────────────────────────────────────
-        // Labels always go inward (left-half nodes → right, right-half → left)
-        // so no extra side margin is needed for text — use a small uniform inset
-        // so node edges don't sit flush against the visual boundary.
-        const margin = { top: 8, right: 8, bottom: 8, left: 8 };
+        // ── Layout margins ────────────────────────────────────────────────────
+        // Leftmost column labels face LEFT (into the left margin); rightmost
+        // column labels face RIGHT (into the right margin); all intermediate
+        // column labels go inward between their adjacent columns.
+        // Measure the widest label in each outer column before layout so the
+        // margin exactly fits the text, letting links fill the remaining width.
+        const labelGap = 6;   // px gap between node face and label
+        let leftLabelMaxW  = 0;
+        let rightLabelMaxW = 0;
+        if (showLabels) {
+            const lbFont  = `${bold ? "bold " : ""}${fontSize}px ${fontFamily}`;
+            const numLvls = levelCats.length;
+            for (const n of nodes) {
+                const lvl = parseInt(n.name.slice(0, n.name.indexOf("\x01")));
+                const w   = measureText(n.label, lbFont);
+                if (lvl === 0)          leftLabelMaxW  = Math.max(leftLabelMaxW,  w);
+                if (lvl === numLvls - 1) rightLabelMaxW = Math.max(rightLabelMaxW, w);
+            }
+        }
+        const lbExtra  = labelBgActive ? PILL_PAD_H : 0;
+        const leftPad  = showLabels ? leftLabelMaxW  + labelGap + lbExtra : 8;
+        const rightPad = showLabels ? rightLabelMaxW + labelGap + lbExtra : 8;
+        const margin   = { top: 8, right: Math.max(8, rightPad), bottom: 8, left: Math.max(8, leftPad) };
         const innerW   = Math.max(10, width  - margin.left - margin.right);
         const innerH   = Math.max(10, height - margin.top  - margin.bottom);
 
@@ -695,10 +713,20 @@ export class Visual implements IVisual {
             }
 
             labelGs.append("text")
-                .attr("x",  d => (d.x0 ?? 0) < innerW / 2 ? (d.x1 ?? 0) + 6 : (d.x0 ?? 0) - 6)
+                .attr("x", d => {
+                    // Outermost columns face outward into the dedicated margin
+                    if ((d.depth  ?? 0) === 0) return (d.x0 ?? 0) - labelGap;   // leftmost → left
+                    if ((d.height ?? 0) === 0) return (d.x1 ?? 0) + labelGap;   // rightmost → right
+                    // Intermediate columns go inward between their adjacent columns
+                    return (d.x0 ?? 0) < innerW / 2 ? (d.x1 ?? 0) + labelGap : (d.x0 ?? 0) - labelGap;
+                })
                 .attr("y",  d => ((d.y0 ?? 0) + (d.y1 ?? 0)) / 2)
                 .attr("dy",              "0.35em")
-                .attr("text-anchor",     d => (d.x0 ?? 0) < innerW / 2 ? "start" : "end")
+                .attr("text-anchor", d => {
+                    if ((d.depth  ?? 0) === 0) return "end";     // leftmost: right-align → text extends left
+                    if ((d.height ?? 0) === 0) return "start";   // rightmost: left-align → text extends right
+                    return (d.x0 ?? 0) < innerW / 2 ? "start" : "end";
+                })
                 .attr("font-family",     fontFamily)
                 .attr("font-size",       `${fontSize}px`)
                 .attr("font-weight",     bold      ? "bold"      : "normal")
@@ -744,7 +772,10 @@ export class Visual implements IVisual {
                     const nh     = (d.y1 ?? 0) - (d.y0 ?? 0);
                     const inside = valuePos === "inside" || (valuePos === "auto" && nh >= vFontSize * 1.5);
                     if (inside) return ((d.x0 ?? 0) + (d.x1 ?? 0)) / 2;
-                    return (d.x0 ?? 0) < innerW / 2 ? (d.x1 ?? 0) + 6 : (d.x0 ?? 0) - 6;
+                    // Outside: outermost columns go into their margin, intermediate go inward
+                    if ((d.depth  ?? 0) === 0) return (d.x0 ?? 0) - labelGap;
+                    if ((d.height ?? 0) === 0) return (d.x1 ?? 0) + labelGap;
+                    return (d.x0 ?? 0) < innerW / 2 ? (d.x1 ?? 0) + labelGap : (d.x0 ?? 0) - labelGap;
                 })
                 .attr("y", d => {
                     const nh     = (d.y1 ?? 0) - (d.y0 ?? 0);
@@ -758,6 +789,8 @@ export class Visual implements IVisual {
                     const nh     = (d.y1 ?? 0) - (d.y0 ?? 0);
                     const inside = valuePos === "inside" || (valuePos === "auto" && nh >= vFontSize * 1.5);
                     if (inside) return "middle";
+                    if ((d.depth  ?? 0) === 0) return "end";
+                    if ((d.height ?? 0) === 0) return "start";
                     return (d.x0 ?? 0) < innerW / 2 ? "start" : "end";
                 })
                 .attr("font-family",     vFontFamily)
