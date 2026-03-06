@@ -88,6 +88,15 @@
           "displayName": "Font Color",
           "type": { "fill": { "solid": { "color": true } } }
         },
+        "position": {
+          "displayName": "Position",
+          "type": {
+            "enumeration": [
+              { "displayName": "Inside",  "value": "inside"  },
+              { "displayName": "Outside", "value": "outside" }
+            ]
+          }
+        },
         "showBackground": {
           "displayName": "Background",
           "type": { "bool": true }

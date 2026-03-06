@@ -319,6 +319,8 @@ export class Visual implements IVisual {
         const italic      = labelSettings.fontControl.italic?.value    ?? false;
         const underline   = labelSettings.fontControl.underline?.value ?? false;
         const fontColor   = labelSettings.fontColor.value?.value       ?? "#333333";
+        const labelPos    = String(labelSettings.position.value?.value  ?? "inside");
+        const labelOutside = labelPos === "outside";
 
         const showValues  = valueSettings.show.value;
         const valuePos    = String(valueSettings.position.value?.value  ?? "auto");
@@ -470,27 +472,27 @@ export class Visual implements IVisual {
         );
 
         // ── Layout margins ────────────────────────────────────────────────────
-        // Leftmost column labels face LEFT (into the left margin); rightmost
-        // column labels face RIGHT (into the right margin); all intermediate
-        // column labels go inward between their adjacent columns.
-        // Measure the widest label in each outer column before layout so the
-        // margin exactly fits the text, letting links fill the remaining width.
+        // "Outside" label mode: outermost column labels face into dedicated
+        // side margins sized by canvas-measuring those labels, so links fill
+        // the remaining inner width independently of label length.
+        // "Inside" label mode: all labels go inward between columns; a small
+        // uniform margin is sufficient.
         const labelGap = 6;   // px gap between node face and label
         let leftLabelMaxW  = 0;
         let rightLabelMaxW = 0;
-        if (showLabels) {
+        if (showLabels && labelOutside) {
             const lbFont  = `${bold ? "bold " : ""}${fontSize}px ${fontFamily}`;
             const numLvls = levelCats.length;
             for (const n of nodes) {
                 const lvl = parseInt(n.name.slice(0, n.name.indexOf("\x01")));
                 const w   = measureText(n.label, lbFont);
-                if (lvl === 0)          leftLabelMaxW  = Math.max(leftLabelMaxW,  w);
+                if (lvl === 0)           leftLabelMaxW  = Math.max(leftLabelMaxW,  w);
                 if (lvl === numLvls - 1) rightLabelMaxW = Math.max(rightLabelMaxW, w);
             }
         }
         const lbExtra  = labelBgActive ? PILL_PAD_H : 0;
-        const leftPad  = showLabels ? leftLabelMaxW  + labelGap + lbExtra : 8;
-        const rightPad = showLabels ? rightLabelMaxW + labelGap + lbExtra : 8;
+        const leftPad  = (showLabels && labelOutside) ? leftLabelMaxW  + labelGap + lbExtra : 8;
+        const rightPad = (showLabels && labelOutside) ? rightLabelMaxW + labelGap + lbExtra : 8;
         const margin   = { top: 8, right: Math.max(8, rightPad), bottom: 8, left: Math.max(8, leftPad) };
         const innerW   = Math.max(10, width  - margin.left - margin.right);
         const innerH   = Math.max(10, height - margin.top  - margin.bottom);
@@ -714,17 +716,21 @@ export class Visual implements IVisual {
 
             labelGs.append("text")
                 .attr("x", d => {
-                    // Outermost columns face outward into the dedicated margin
-                    if ((d.depth  ?? 0) === 0) return (d.x0 ?? 0) - labelGap;   // leftmost → left
-                    if ((d.height ?? 0) === 0) return (d.x1 ?? 0) + labelGap;   // rightmost → right
-                    // Intermediate columns go inward between their adjacent columns
+                    if (labelOutside) {
+                        // Outside: outermost columns face into their dedicated margin
+                        if ((d.depth  ?? 0) === 0) return (d.x0 ?? 0) - labelGap;  // leftmost → left
+                        if ((d.height ?? 0) === 0) return (d.x1 ?? 0) + labelGap;  // rightmost → right
+                    }
+                    // Inside (or intermediate outside): go inward between adjacent columns
                     return (d.x0 ?? 0) < innerW / 2 ? (d.x1 ?? 0) + labelGap : (d.x0 ?? 0) - labelGap;
                 })
                 .attr("y",  d => ((d.y0 ?? 0) + (d.y1 ?? 0)) / 2)
                 .attr("dy",              "0.35em")
                 .attr("text-anchor", d => {
-                    if ((d.depth  ?? 0) === 0) return "end";     // leftmost: right-align → text extends left
-                    if ((d.height ?? 0) === 0) return "start";   // rightmost: left-align → text extends right
+                    if (labelOutside) {
+                        if ((d.depth  ?? 0) === 0) return "end";    // leftmost → text extends left
+                        if ((d.height ?? 0) === 0) return "start";  // rightmost → text extends right
+                    }
                     return (d.x0 ?? 0) < innerW / 2 ? "start" : "end";
                 })
                 .attr("font-family",     fontFamily)
@@ -772,9 +778,12 @@ export class Visual implements IVisual {
                     const nh     = (d.y1 ?? 0) - (d.y0 ?? 0);
                     const inside = valuePos === "inside" || (valuePos === "auto" && nh >= vFontSize * 1.5);
                     if (inside) return ((d.x0 ?? 0) + (d.x1 ?? 0)) / 2;
-                    // Outside: outermost columns go into their margin, intermediate go inward
-                    if ((d.depth  ?? 0) === 0) return (d.x0 ?? 0) - labelGap;
-                    if ((d.height ?? 0) === 0) return (d.x1 ?? 0) + labelGap;
+                    // Outside: follow the Labels Position setting so values stack
+                    // neatly beneath their corresponding name label
+                    if (labelOutside) {
+                        if ((d.depth  ?? 0) === 0) return (d.x0 ?? 0) - labelGap;
+                        if ((d.height ?? 0) === 0) return (d.x1 ?? 0) + labelGap;
+                    }
                     return (d.x0 ?? 0) < innerW / 2 ? (d.x1 ?? 0) + labelGap : (d.x0 ?? 0) - labelGap;
                 })
                 .attr("y", d => {
@@ -789,8 +798,10 @@ export class Visual implements IVisual {
                     const nh     = (d.y1 ?? 0) - (d.y0 ?? 0);
                     const inside = valuePos === "inside" || (valuePos === "auto" && nh >= vFontSize * 1.5);
                     if (inside) return "middle";
-                    if ((d.depth  ?? 0) === 0) return "end";
-                    if ((d.height ?? 0) === 0) return "start";
+                    if (labelOutside) {
+                        if ((d.depth  ?? 0) === 0) return "end";
+                        if ((d.height ?? 0) === 0) return "start";
+                    }
                     return (d.x0 ?? 0) < innerW / 2 ? "start" : "end";
                 })
                 .attr("font-family",     vFontFamily)

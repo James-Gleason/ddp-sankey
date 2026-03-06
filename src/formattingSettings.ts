@@ -51,6 +51,11 @@ class LinkSettingsCard extends formattingSettings.SimpleCard {
 
 // ─── Labels card ──────────────────────────────────────────────────────────────
 
+const labelPositionItems = [
+    { displayName: "Inside",  value: "inside"  },
+    { displayName: "Outside", value: "outside" }
+];
+
 class LabelSettingsCard extends formattingSettings.SimpleCard {
     public name: string = "labelSettings";
     public displayName: string = "Labels";
@@ -99,6 +104,14 @@ class LabelSettingsCard extends formattingSettings.SimpleCard {
         value: { value: "#333333" }
     });
 
+    public position = new formattingSettings.ItemDropdown({
+        name: "position",
+        displayName: "Position",
+        description: "Inside — labels appear between node columns alongside the ribbons.  Outside — labels appear in a dedicated margin flanking the diagram.",
+        items: labelPositionItems,
+        value: labelPositionItems[0]   // default: Inside
+    });
+
     public showBackground = new formattingSettings.ToggleSwitch({
         name: "showBackground",
         displayName: "Background",
@@ -123,7 +136,7 @@ class LabelSettingsCard extends formattingSettings.SimpleCard {
     });
 
     public topLevelSlice = this.show;
-    public slices = [this.fontControl, this.fontColor, this.showBackground, this.backgroundColor, this.backgroundTransparency];
+    public slices = [this.fontControl, this.fontColor, this.position, this.showBackground, this.backgroundColor, this.backgroundTransparency];
 }
 
 // ─── Values card ──────────────────────────────────────────────────────────────

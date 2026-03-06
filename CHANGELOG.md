@@ -12,6 +12,24 @@ The `.pbiviz` file for each release is attached to the corresponding [GitHub Rel
 
 ---
 
+## [1.2.9-beta.1] — 2026-03-05
+
+### Changed
+- **Label Position setting replaces the forced outward layout from v1.2.8** —
+  the previous release hard-coded outermost column labels to face outward.
+  This is now a user choice in the **Labels** format card:
+  - **Inside** *(default)* — all labels appear between node columns alongside
+    the ribbons, exactly as they did before v1.2.8.  The layout uses a small
+    uniform 8 px margin on all sides.
+  - **Outside** — leftmost column labels face left into a canvas-measured left
+    margin; rightmost column labels face right into a matching right margin;
+    intermediate column labels remain inward.  The Sankey layout fills the
+    space between the two outer margins so link length is independent of label
+    text length.  When value labels are set to *Outside* node positioning, they
+    stack below the name label in the same margin direction.
+
+---
+
 ## [1.2.8-beta.1] — 2026-03-05
 
 ### Changed
