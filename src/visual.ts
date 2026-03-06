@@ -804,10 +804,17 @@ export class Visual implements IVisual {
                     .sort((a, b) => (depth0Order.get(a[0]) ?? 0) - (depth0Order.get(b[0]) ?? 0));
 
                 // ── Right side: source-side positions of outgoing links ────────
-                // Cursor per source starts at the top of each source's band.
+                // Band heights derived from actual linkDrawW values (same reason
+                // as left side — minRibbonHeight inflation must be accounted for).
+                const outBandH = new Map<string, number>(ndSrcs.map(([s]) => [s, 0] as [string, number]));
+                for (const lnk of srcLinks) {
+                    const key2  = `${nd.name}\x00${(lnk.target as LayoutNode).name}`;
+                    const fullW2 = linkDrawW.get(key2) ?? Math.max(minRibbonHeight, lnk.width ?? 1) * fitK;
+                    for (const [s, frac] of ndSrcs) { outBandH.set(s, (outBandH.get(s) ?? 0) + fullW2 * frac); }
+                }
                 const outCursor = new Map<string, number>();
                 { let y = nd.y0 ?? 0;
-                  for (const [s, frac] of ndSrcs) { outCursor.set(s, y); y += nodeH * frac; } }
+                  for (const [s] of ndSrcs) { outCursor.set(s, y); y += outBandH.get(s) ?? 0; } }
 
                 for (const lnk of srcLinks) {
                     const key  = `${nd.name}\x00${(lnk.target as LayoutNode).name}`;
@@ -821,16 +828,29 @@ export class Visual implements IVisual {
                 }
 
                 // ── Left side: target-side positions of incoming links ─────────
-                // Each incoming link carries the source profile of its own source
-                // node; place those sub-ribbons within this node's source bands.
+                // Band heights are derived from the actual linkDrawW_tgt values,
+                // NOT from nodeContrib fractions × nodeH.  When minRibbonHeight
+                // inflates a thin link's draw width, using the value-based fraction
+                // would produce a band smaller than the inflated ribbon, causing
+                // sub-ribbons to overflow into adjacent bands and visually overlap.
+                const inBandH = new Map<string, number>(ndSrcs.map(([s]) => [s, 0] as [string, number]));
+                for (const lnk of tgtLinks) {
+                    const srcNd2  = lnk.source as LayoutNode;
+                    const key2    = `${srcNd2.name}\x00${nd.name}`;
+                    const fullW2  = linkDrawW_tgt.get(key2) ?? Math.max(minRibbonHeight, lnk.width ?? 1) * fitK;
+                    const lnkC    = nodeContrib.get(srcNd2.name) ?? new Map<string, number>();
+                    for (const [s] of ndSrcs) {
+                        inBandH.set(s, (inBandH.get(s) ?? 0) + fullW2 * (lnkC.get(s) ?? 0));
+                    }
+                }
                 const inCursor = new Map<string, number>();
                 { let y = nd.y0 ?? 0;
-                  for (const [s, frac] of ndSrcs) { inCursor.set(s, y); y += nodeH * frac; } }
+                  for (const [s] of ndSrcs) { inCursor.set(s, y); y += inBandH.get(s) ?? 0; } }
 
                 for (const lnk of tgtLinks) {
-                    const srcNd     = lnk.source as LayoutNode;
-                    const key       = `${srcNd.name}\x00${nd.name}`;
-                    const fullW     = linkDrawW_tgt.get(key) ?? Math.max(minRibbonHeight, lnk.width ?? 1) * fitK;
+                    const srcNd      = lnk.source as LayoutNode;
+                    const key        = `${srcNd.name}\x00${nd.name}`;
+                    const fullW      = linkDrawW_tgt.get(key) ?? Math.max(minRibbonHeight, lnk.width ?? 1) * fitK;
                     const lnkContrib = nodeContrib.get(srcNd.name) ?? new Map<string, number>();
                     for (const [s, _frac] of ndSrcs) {
                         const subW = fullW * (lnkContrib.get(s) ?? 0);
