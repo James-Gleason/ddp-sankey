@@ -99,8 +99,31 @@ class LabelSettingsCard extends formattingSettings.SimpleCard {
         value: { value: "#333333" }
     });
 
+    public showBackground = new formattingSettings.ToggleSwitch({
+        name: "showBackground",
+        displayName: "Background",
+        value: false
+    });
+
+    public backgroundColor = new formattingSettings.ColorPicker({
+        name: "backgroundColor",
+        displayName: "Background Color",
+        value: { value: "#ffffff" }
+    });
+
+    public backgroundTransparency = new formattingSettings.Slider({
+        name: "backgroundTransparency",
+        displayName: "Transparency",
+        description: "Pill background transparency — 0 % is fully opaque, 100 % is fully transparent",
+        value: 20,
+        options: {
+            minValue: { type: ValidatorType.Min, value: 0   },
+            maxValue: { type: ValidatorType.Max, value: 100 }
+        }
+    });
+
     public topLevelSlice = this.show;
-    public slices = [this.fontControl, this.fontColor];
+    public slices = [this.fontControl, this.fontColor, this.showBackground, this.backgroundColor, this.backgroundTransparency];
 }
 
 // ─── Values card ──────────────────────────────────────────────────────────────
@@ -176,8 +199,31 @@ class ValueSettingsCard extends formattingSettings.SimpleCard {
         value: { value: "#333333" }
     });
 
+    public showBackground = new formattingSettings.ToggleSwitch({
+        name: "showBackground",
+        displayName: "Background",
+        value: false
+    });
+
+    public backgroundColor = new formattingSettings.ColorPicker({
+        name: "backgroundColor",
+        displayName: "Background Color",
+        value: { value: "#ffffff" }
+    });
+
+    public backgroundTransparency = new formattingSettings.Slider({
+        name: "backgroundTransparency",
+        displayName: "Transparency",
+        description: "Pill background transparency — 0 % is fully opaque, 100 % is fully transparent",
+        value: 20,
+        options: {
+            minValue: { type: ValidatorType.Min, value: 0   },
+            maxValue: { type: ValidatorType.Max, value: 100 }
+        }
+    });
+
     public topLevelSlice = this.show;
-    public slices = [this.target, this.position, this.fontControl, this.fontColor];
+    public slices = [this.target, this.position, this.fontControl, this.fontColor, this.showBackground, this.backgroundColor, this.backgroundTransparency];
 }
 
 // ─── Root model ───────────────────────────────────────────────────────────────

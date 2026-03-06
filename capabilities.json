@@ -87,6 +87,18 @@
         "fontColor": {
           "displayName": "Font Color",
           "type": { "fill": { "solid": { "color": true } } }
+        },
+        "showBackground": {
+          "displayName": "Background",
+          "type": { "bool": true }
+        },
+        "backgroundColor": {
+          "displayName": "Background Color",
+          "type": { "fill": { "solid": { "color": true } } }
+        },
+        "backgroundTransparency": {
+          "displayName": "Transparency",
+          "type": { "numeric": true }
         }
       }
     },
@@ -139,6 +151,18 @@
         "fontColor": {
           "displayName": "Font Color",
           "type": { "fill": { "solid": { "color": true } } }
+        },
+        "showBackground": {
+          "displayName": "Background",
+          "type": { "bool": true }
+        },
+        "backgroundColor": {
+          "displayName": "Background Color",
+          "type": { "fill": { "solid": { "color": true } } }
+        },
+        "backgroundTransparency": {
+          "displayName": "Transparency",
+          "type": { "numeric": true }
         }
       }
     }

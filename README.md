@@ -38,6 +38,9 @@ Drag two or more columns into **Path Levels** and a numeric measure into **Value
 - **Show Labels** — toggle node name labels on/off
 - **Font** — family, size, bold, italic, underline
 - **Font Color**
+- **Background** — toggle pill-shaped background behind each label
+- **Background Color** — default white
+- **Transparency** — 0 % (opaque) → 100 % (invisible), default 20 %
 
 ### Values
 - **Show Values** — toggle value labels on/off
@@ -45,6 +48,9 @@ Drag two or more columns into **Path Levels** and a numeric measure into **Value
 - **Position** — `Inside`, `Outside`, or `Auto` (auto picks based on node height vs font size)
 - **Font** — family, size, bold, italic, underline
 - **Font Color**
+- **Background** — toggle pill-shaped background behind each value label
+- **Background Color** — default white
+- **Transparency** — 0 % (opaque) → 100 % (invisible), default 20 %
 
 ---
 
@@ -65,7 +71,7 @@ Node.js is required. npm is not in the default shell PATH on the build machine, 
 powershell.exe -ExecutionPolicy Bypass -File "build.ps1"
 ```
 
-Output: `dist\DDP_Sankey_1.2.5.0.pbiviz` (filename always matches the current version)
+Output: `dist\DDP_Sankey_1.2.6.0.pbiviz` (filename always matches the current version)
 
 Install the `.pbiviz` in Power BI Desktop via **Home → Import a visual from a file**.
 

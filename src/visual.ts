@@ -51,6 +51,10 @@ function measureText(text: string, font: string): number {
     return ctx.measureText(text).width;
 }
 
+/** Padding inside pill-shaped label/value backgrounds (px). */
+const PILL_PAD_V = 3;   // top and bottom
+const PILL_PAD_H = 8;   // left and right
+
 /**
  * Post-layout pass: re-stack ribbons within each node using their *effective*
  * widths — i.e. Math.max(minH, link.width) — and expand the node's y1 when
@@ -326,6 +330,20 @@ export class Visual implements IVisual {
         const vUnderline  = valueSettings.fontControl.underline?.value ?? false;
         const vFontColor  = valueSettings.fontColor.value?.value       ?? "#333333";
 
+        const labelBg             = labelSettings.showBackground.value;
+        const labelBgColor        = labelSettings.backgroundColor.value?.value  ?? "#ffffff";
+        const labelBgTransparency = labelSettings.backgroundTransparency.value;
+        const labelBgOpacity      = 1 - labelBgTransparency / 100;
+
+        const valueBg             = valueSettings.showBackground.value;
+        const valueBgColor        = valueSettings.backgroundColor.value?.value  ?? "#ffffff";
+        const valueBgTransparency = valueSettings.backgroundTransparency.value;
+        const valueBgOpacity      = 1 - valueBgTransparency / 100;
+
+        // A pill background is "active" only when the parent text toggle is also on
+        const labelBgActive = showLabels && labelBg;
+        const valueBgActive = showValues && valueBg;
+
         this.currentLinkOpacity = linkOpacity;
 
         // ── Guard: no data ─────────────────────────────────────────────────────
@@ -441,11 +459,14 @@ export class Visual implements IVisual {
         });
 
         // Minimum ribbon height: tall enough to contain the largest active text label.
+        // When a pill background is enabled the ribbon must also accommodate the pill
+        // (font + PILL_PAD_V each side + 2 px visual margin each side = PILL_PAD_V*2+4).
         // Declared here (before layout) because reStackRibbons uses it post-layout.
+        const pillH = (PILL_PAD_V + 2) * 2;   // extra headroom vs the plain-text baseline of 4 px
         const minRibbonHeight = Math.max(
             1,
-            showLabels ? fontSize  + 4 : 1,
-            showValues ? vFontSize + 4 : 1
+            showLabels ? fontSize  + (labelBgActive ? pillH : 4) : 1,
+            showValues ? vFontSize + (valueBgActive ? pillH : 4) : 1
         );
 
         // ── Layout ────────────────────────────────────────────────────────────
@@ -478,10 +499,12 @@ export class Visual implements IVisual {
         // every node's label with the canvas API and take the widest.
         let effectiveNodeWidth = nodeWidth;
         if (showValues && valueTarget === "nodes" && valuePos !== "outside") {
-            const font = `${vBold ? "bold " : ""}${vFontSize}px ${vFontFamily}`;
+            const font     = `${vBold ? "bold " : ""}${vFontSize}px ${vFontFamily}`;
+            // When a pill background is active, node must also accommodate horizontal pill padding
+            const nodePad  = valueBgActive ? PILL_PAD_H * 2 : 8; // pill: 8 px each side; plain: 4 px
             for (const nd of graph.nodes) {
                 const tw = measureText((nd.value ?? 0).toLocaleString(), font);
-                if (tw + 8 > effectiveNodeWidth) effectiveNodeWidth = tw + 8; // 4 px each side
+                if (tw + nodePad > effectiveNodeWidth) effectiveNodeWidth = tw + nodePad;
             }
         }
 
@@ -656,8 +679,20 @@ export class Visual implements IVisual {
 
         // ── Name labels ───────────────────────────────────────────────────────
         if (showLabels) {
-            nodeGroups
-                .append("text")
+            const labelGs = nodeGroups
+                .append("g")
+                .classed("label-group", true)
+                .attr("pointer-events", "none");
+
+            // Placeholder pill rect — sized after text is in the DOM
+            if (labelBgActive) {
+                labelGs.append("rect")
+                    .classed("label-pill", true)
+                    .attr("fill",    labelBgColor)
+                    .attr("opacity", labelBgOpacity);
+            }
+
+            labelGs.append("text")
                 .attr("x",  d => (d.x0 ?? 0) < innerW / 2 ? (d.x1 ?? 0) + 6 : (d.x0 ?? 0) - 6)
                 .attr("y",  d => ((d.y0 ?? 0) + (d.y1 ?? 0)) / 2)
                 .attr("dy",              "0.35em")
@@ -668,14 +703,41 @@ export class Visual implements IVisual {
                 .attr("font-style",      italic    ? "italic"    : "normal")
                 .attr("text-decoration", underline ? "underline" : "none")
                 .attr("fill",            fontColor)
-                .attr("pointer-events",  "none")
                 .text(d => d.label);
+
+            // Size each pill to its text's bounding box now that the text is in the DOM
+            if (labelBgActive) {
+                labelGs.each(function () {
+                    const grp    = select(this);
+                    const textEl = grp.select<SVGTextElement>("text").node();
+                    if (!textEl) return;
+                    const bb = textEl.getBBox();
+                    grp.select<SVGRectElement>("rect.label-pill")
+                        .attr("x",      bb.x - PILL_PAD_H)
+                        .attr("y",      bb.y - PILL_PAD_V)
+                        .attr("width",  bb.width  + PILL_PAD_H * 2)
+                        .attr("height", bb.height + PILL_PAD_V * 2)
+                        .attr("rx",    (bb.height + PILL_PAD_V * 2) / 2)
+                        .attr("ry",    (bb.height + PILL_PAD_V * 2) / 2);
+                });
+            }
         }
 
         // ── Value labels — nodes ───────────────────────────────────────────────
         if (showValues && valueTarget === "nodes") {
-            nodeGroups
-                .append("text")
+            const valueGs = nodeGroups
+                .append("g")
+                .classed("value-group", true)
+                .attr("pointer-events", "none");
+
+            if (valueBgActive) {
+                valueGs.append("rect")
+                    .classed("value-pill", true)
+                    .attr("fill",    valueBgColor)
+                    .attr("opacity", valueBgOpacity);
+            }
+
+            valueGs.append("text")
                 .attr("x", d => {
                     const nh     = (d.y1 ?? 0) - (d.y0 ?? 0);
                     const inside = valuePos === "inside" || (valuePos === "auto" && nh >= vFontSize * 1.5);
@@ -702,20 +764,44 @@ export class Visual implements IVisual {
                 .attr("font-style",      vItalic   ? "italic"    : "normal")
                 .attr("text-decoration", vUnderline ? "underline" : "none")
                 .attr("fill",            vFontColor)
-                .attr("pointer-events",  "none")
                 .text(d => (d.value ?? 0).toLocaleString());
+
+            if (valueBgActive) {
+                valueGs.each(function () {
+                    const grp    = select(this);
+                    const textEl = grp.select<SVGTextElement>("text").node();
+                    if (!textEl) return;
+                    const bb = textEl.getBBox();
+                    grp.select<SVGRectElement>("rect.value-pill")
+                        .attr("x",      bb.x - PILL_PAD_H)
+                        .attr("y",      bb.y - PILL_PAD_V)
+                        .attr("width",  bb.width  + PILL_PAD_H * 2)
+                        .attr("height", bb.height + PILL_PAD_V * 2)
+                        .attr("rx",    (bb.height + PILL_PAD_V * 2) / 2)
+                        .attr("ry",    (bb.height + PILL_PAD_V * 2) / 2);
+                });
+            }
         }
 
         // ── Value labels — ribbons ─────────────────────────────────────────────
         if (showValues && valueTarget === "ribbons") {
-            this.container
+            const ribbonValueGs = this.container
                 .append("g")
                 .classed("link-labels", true)
                 .attr("pointer-events", "none")
-                .selectAll<SVGTextElement, LayoutLink>("text")
+                .selectAll<SVGGElement, LayoutLink>("g")
                 .data(graph.links)
-                .join("text")
-                // Centre the label on the ribbon midpoint
+                .join("g");
+
+            if (valueBgActive) {
+                ribbonValueGs.append("rect")
+                    .classed("value-pill", true)
+                    .attr("fill",    valueBgColor)
+                    .attr("opacity", valueBgOpacity);
+            }
+
+            // Centre the label on the ribbon midpoint
+            ribbonValueGs.append("text")
                 .attr("x", d => {
                     const srcX1 = (d.source as LayoutNode).x1 ?? 0;
                     const tgtX0 = (d.target as LayoutNode).x0 ?? 0;
@@ -731,6 +817,22 @@ export class Visual implements IVisual {
                 .attr("text-decoration", vUnderline ? "underline" : "none")
                 .attr("fill",            vFontColor)
                 .text(d => d.value.toLocaleString());
+
+            if (valueBgActive) {
+                ribbonValueGs.each(function () {
+                    const grp    = select(this);
+                    const textEl = grp.select<SVGTextElement>("text").node();
+                    if (!textEl) return;
+                    const bb = textEl.getBBox();
+                    grp.select<SVGRectElement>("rect.value-pill")
+                        .attr("x",      bb.x - PILL_PAD_H)
+                        .attr("y",      bb.y - PILL_PAD_V)
+                        .attr("width",  bb.width  + PILL_PAD_H * 2)
+                        .attr("height", bb.height + PILL_PAD_V * 2)
+                        .attr("rx",    (bb.height + PILL_PAD_V * 2) / 2)
+                        .attr("ry",    (bb.height + PILL_PAD_V * 2) / 2);
+                });
+            }
         }
 
     }

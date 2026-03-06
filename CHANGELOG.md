@@ -12,6 +12,37 @@ The `.pbiviz` file for each release is attached to the corresponding [GitHub Rel
 
 ---
 
+## [1.2.6-beta.1] — 2026-03-05
+
+### Added
+- **Label background** — the Labels format card now has a **Background** toggle.
+  When enabled, each node-name label is wrapped in a pill-shaped background
+  (rounded rectangle, `border-radius = height / 2`, matching Power BI's native
+  pill style). Controls:
+  - **Background Color** — color picker, default white (#ffffff)
+  - **Transparency** — 0 % fully opaque → 100 % fully transparent, default 20 %
+  When the background is active, `minRibbonHeight` is automatically increased
+  so the pill fits inside the ribbon with a 2 px visual margin on each side.
+
+- **Value background** — the Values format card gains the same three controls
+  (**Background**, **Background Color**, **Transparency**) applying to value
+  labels whether they are positioned on nodes or on ribbons.  When a value
+  background is active:
+  - `minRibbonHeight` expands to fit the pill (same headroom logic as labels).
+  - The two-pass node-width calculation adds horizontal pill padding
+    (8 px per side) when inside-positioned value labels are used, so the pill
+    fits inside the node rectangle without clipping.
+  - For ribbon value labels the pill is centred at the ribbon midpoint; the
+    ribbon height expansion ensures there is space for it.
+
+  Implementation: each label/value text element is now placed inside a `<g>`
+  that first holds an optional `<rect class="label-pill">` / `<rect class="value-pill">`.
+  After the text is inserted into the SVG DOM, `SVGTextElement.getBBox()` is
+  called to get the exact rendered bounding box, and the rect is sized to
+  `(bb.width + 16) × (bb.height + 6)` with `rx = ry = (bb.height + 6) / 2`.
+
+---
+
 ## [1.2.5-beta.1] — 2026-03-05
 
 ### Removed
