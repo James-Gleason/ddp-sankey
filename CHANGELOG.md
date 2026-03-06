@@ -12,6 +12,34 @@ The `.pbiviz` file for each release is attached to the corresponding [GitHub Rel
 
 ---
 
+## [1.2.4-beta.1] — 2026-03-05
+
+### Fixed
+- **Ribbon ends now match node height on both sides** — ribbons were previously
+  rendered as a stroked cubic bezier centreline with a single uniform
+  `stroke-width` sourced from the source-node-scaled drawing width.  This meant
+  the ribbon looked correct where it left the source node but was the wrong
+  thickness where it arrived at the target node — visually leaving gaps or
+  overflowing the node face on the target side.
+
+  The rendering pipeline now works as follows:
+  - `reStackRibbons()` independently computes and stores the scaled drawing width
+    for every link on **both** the source side (`linkDrawW`) and the target side
+    (`linkDrawW_tgt`), keyed by `"srcName\x00tgtName"`.
+  - A new `taperingRibbonPath()` helper constructs a closed SVG path with four
+    distinct corner points — top-source, top-target, bottom-target, bottom-source
+    — connected by two cubic bezier curves (one for the top edge, one for the
+    bottom edge) whose control points sit at the horizontal midpoint between the
+    two nodes.  The ribbon is `srcW` tall at the source face and `tgtW` tall at
+    the target face, tapering smoothly in between.
+  - Ribbons are now rendered as **filled** closed paths (`fill: ribbonColor`)
+    rather than stroked centrelines, so each end is always flush with the full
+    allocated height on that node face regardless of how many other ribbons share
+    the same node.
+  - The `sankeyLinkHorizontal` import is removed as it is no longer used.
+
+---
+
 ## [1.2.3-beta.1] — 2026-03-05
 
 ### Fixed

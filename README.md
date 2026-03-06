@@ -21,6 +21,7 @@ Drag two or more columns into **Path Levels** and a numeric measure into **Value
 | **Cross-filtering** | Click a node or ribbon to filter other visuals on the page; Ctrl/Cmd-click for multi-select; click the background to clear |
 | **Zoom & pan** | Scroll to zoom, drag to pan, double-click to reset |
 | **Field-well ordering** | Top-to-bottom order in the Path Levels field well maps left-to-right in the visual |
+| **Tapered ribbons** | Each ribbon end independently matches the allocated height on that node face; ribbons rendered as filled paths that taper smoothly between source and target widths |
 
 ---
 
@@ -64,7 +65,7 @@ Node.js is required. npm is not in the default shell PATH on the build machine, 
 powershell.exe -ExecutionPolicy Bypass -File "build.ps1"
 ```
 
-Output: `dist\DDP_Sankey_1.0.2.0.pbiviz` (filename always matches the current version)
+Output: `dist\DDP_Sankey_1.2.4.0.pbiviz` (filename always matches the current version)
 
 Install the `.pbiviz` in Power BI Desktop via **Home → Import a visual from a file**.
 

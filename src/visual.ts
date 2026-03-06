@@ -11,7 +11,6 @@ import { VisualFormattingSettingsModel } from "./formattingSettings";
 
 import {
     sankey,
-    sankeyLinkHorizontal,
     SankeyNode,
     SankeyLink,
     SankeyGraph
@@ -69,11 +68,17 @@ function measureText(text: string, font: string): number {
  * entering a node but only one leaving it.  The scale factor per side is:
  *   fill = nodeH / sideTotal   (≥ 1 when ribbons don't yet fill the node)
  *
- * The source side is authoritative for drawing width: scaled widths are stored
- * in `linkDrawW` (keyed by "srcName\x00tgtName") for use by the stroke-width
- * drawing attribute.  The target side only updates y1 positions.
+ * Both sides are authoritative for their own drawing width.  Source-side scaled
+ * widths are stored in `linkDrawW` and target-side in `linkDrawW_tgt` (both keyed
+ * by "srcName\x00tgtName") so the ribbon path generator can taper smoothly from
+ * the source-node height to the target-node height.
  */
-function reStackRibbons(graph: LayoutGraph, minH: number, linkDrawW: Map<string, number>): void {
+function reStackRibbons(
+    graph:         LayoutGraph,
+    minH:          number,
+    linkDrawW:     Map<string, number>,
+    linkDrawW_tgt: Map<string, number>
+): void {
     for (const nd of graph.nodes) {
         const node     = nd as LayoutNode;
         const srcLinks = (node.sourceLinks ?? []) as LayoutLink[];
@@ -111,7 +116,8 @@ function reStackRibbons(graph: LayoutGraph, minH: number, linkDrawW: Map<string,
         }
 
         // Scale target ribbons to fill the full node height — no centering gap.
-        // Target side only updates y1 positions; drawing width comes from source pass.
+        // Target-side drawing widths are stored in linkDrawW_tgt so the path
+        // generator can taper the ribbon to match the target node height.
         if (tgtLinks.length > 0) {
             const tgtFill = tgtTot > 0 ? nodeH / tgtTot : 1;
             let y = y0;
@@ -119,6 +125,9 @@ function reStackRibbons(graph: LayoutGraph, minH: number, linkDrawW: Map<string,
                 const dw = tgtEW[i] * tgtFill;
                 lnk.y1 = y + dw / 2;
                 y += dw;
+                const src = (lnk.source as LayoutNode).name;
+                const tgt = (lnk.target as LayoutNode).name;
+                linkDrawW_tgt.set(`${src}\x00${tgt}`, dw);
             });
         }
     }
@@ -170,6 +179,43 @@ function resolveColumnOverlaps(graph: LayoutGraph, padding: number): void {
             }
         }
     });
+}
+
+/**
+ * Generates an SVG path for a ribbon that tapers between two different widths —
+ * `srcW` at the source node's right edge and `tgtW` at the target node's left
+ * edge.  The four corners are connected with two cubic bezier curves (one for
+ * the top edge, one for the bottom edge) whose control points sit at the
+ * horizontal midpoint so the curvature matches the classic Sankey aesthetic.
+ *
+ * Rendering as a *filled* closed path (rather than a stroked centreline) means
+ * the ribbon naturally hugs each node face at the correct height on both ends.
+ */
+function taperingRibbonPath(
+    d:             LayoutLink,
+    linkDrawW:     Map<string, number>,
+    linkDrawW_tgt: Map<string, number>,
+    minH:          number
+): string {
+    const src  = d.source as LayoutNode;
+    const tgt  = d.target as LayoutNode;
+    const srcX = src.x1 ?? 0;
+    const tgtX = tgt.x0 ?? 0;
+    const midX = (srcX + tgtX) / 2;
+    const cy0  = d.y0 ?? 0;
+    const cy1  = d.y1 ?? 0;
+    const key  = `${src.name}\x00${tgt.name}`;
+    const srcW = linkDrawW.get(key)     ?? Math.max(minH, d.width ?? 1);
+    const tgtW = linkDrawW_tgt.get(key) ?? Math.max(minH, d.width ?? 1);
+    const hs   = srcW / 2;   // half-height at source
+    const ht   = tgtW / 2;   // half-height at target
+    return (
+        `M ${srcX} ${cy0 - hs}` +
+        ` C ${midX} ${cy0 - hs},${midX} ${cy1 - ht},${tgtX} ${cy1 - ht}` +
+        ` L ${tgtX} ${cy1 + ht}` +
+        ` C ${midX} ${cy1 + ht},${midX} ${cy0 + hs},${srcX} ${cy0 + hs}` +
+        ` Z`
+    );
 }
 
 // ─── Visual ───────────────────────────────────────────────────────────────────
@@ -524,14 +570,14 @@ export class Visual implements IVisual {
         // node and overflow the node rectangle.  reStackRibbons corrects this by:
         //   • computing effective ribbon widths: max(minRibbonHeight, natural width)
         //   • expanding node.y1 when the inflated ribbons no longer fit
-        //   • re-centring link.y0 / link.y1 within the (possibly taller) node
-        // This runs whenever minRibbonHeight could actually inflate something.
-        // linkDrawW: per-link scaled drawing widths populated by reStackRibbons.
-        // Keyed by "srcName\x00tgtName"; source side is authoritative.
-        // Falls back to Math.max(minRibbonHeight, d.width) when minRibbonHeight ≤ 1.
-        const linkDrawW = new Map<string, number>();
+        //   • re-stacking link.y0 / link.y1 within the (possibly taller) node
+        // linkDrawW / linkDrawW_tgt: per-link scaled drawing widths (source-side and
+        // target-side respectively) keyed by "srcName\x00tgtName".  Both maps are
+        // consumed by taperingRibbonPath() to draw correctly-tapered ribbons.
+        const linkDrawW     = new Map<string, number>();
+        const linkDrawW_tgt = new Map<string, number>();
         if (minRibbonHeight > 1) {
-            reStackRibbons(graph, minRibbonHeight, linkDrawW);
+            reStackRibbons(graph, minRibbonHeight, linkDrawW, linkDrawW_tgt);
             // After nodes are expanded, nodes in the same column may overlap.
             // Resolve by pushing lower nodes down (with their ribbon endpoints).
             resolveColumnOverlaps(graph, nodePadding);
@@ -617,21 +663,17 @@ export class Visual implements IVisual {
         };
 
         // ── Links ─────────────────────────────────────────────────────────────
+        // Rendered as filled closed paths (not stroked centrelines) so the ribbon
+        // naturally tapers from its source-side width to its target-side width.
         const linkPaths = this.container
             .append("g")
             .classed("links", true)
-            .attr("fill", "none")
             .selectAll<SVGPathElement, LayoutLink>("path")
             .data(graph.links)
             .join("path")
-            .attr("d", sankeyLinkHorizontal())
-            .attr("stroke",       ribbonColor)
-            .attr("stroke-width", d => {
-                const src = (d.source as LayoutNode).name;
-                const tgt = (d.target as LayoutNode).name;
-                return linkDrawW.get(`${src}\x00${tgt}`) ?? Math.max(minRibbonHeight, d.width ?? 1);
-            })
-            .attr("opacity",      d => linkOpacityFn(d))
+            .attr("d",       d => taperingRibbonPath(d, linkDrawW, linkDrawW_tgt, minRibbonHeight))
+            .attr("fill",    ribbonColor)
+            .attr("opacity", d => linkOpacityFn(d))
             .style("cursor", "pointer");
 
         linkPaths
