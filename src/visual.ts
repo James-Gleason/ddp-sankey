@@ -570,6 +570,13 @@ export class Visual implements IVisual {
                 const tw = measureText((nd.value ?? 0).toLocaleString(), font);
                 if (tw + nodePad > effectiveNodeWidth) effectiveNodeWidth = tw + nodePad;
             }
+            // Cap expansion so ribbons stay at least 40 px wide regardless of font size.
+            // Each of the (numCols) node columns may grow to at most (innerW/numCols - 40) px.
+            const numCols = levelCats.length;
+            if (numCols > 1) {
+                const maxNodeW = Math.max(nodeWidth, innerW / numCols - 40);
+                effectiveNodeWidth = Math.min(effectiveNodeWidth, maxNodeW);
+            }
         }
 
         // Pass 2: re-run layout with the wider node if text measurement required it.

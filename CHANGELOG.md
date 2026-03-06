@@ -12,6 +12,18 @@ The `.pbiviz` file for each release is attached to the corresponding [GitHub Rel
 
 ---
 
+## [1.2.15-beta.1] — 2026-03-06
+
+### Fixed
+- **Ribbon length stable when value font size changes** — the auto-expand of
+  node width (to fit value labels inside nodes) is now capped so each node
+  may grow to at most `innerW / numColumns − 40 px`, guaranteeing ribbons
+  always retain a minimum 40 px horizontal span.  Previously, a large value
+  font could push `effectiveNodeWidth` high enough that ribbons shrank to
+  almost nothing.
+
+---
+
 ## [1.2.14-beta.1] — 2026-03-06
 
 ### Fixed
