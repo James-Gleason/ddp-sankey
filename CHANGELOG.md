@@ -30,9 +30,10 @@ The `.pbiviz` file for each release is attached to the corresponding [GitHub Rel
   transform is now only applied when the update type includes `Data` or
   `Resize`.  Previously, any format-pane change (e.g. tweaking a colour) would
   silently reset the user's zoom/pan position.
-- **`capabilities.json` minimum pathLevels** — corrected the `conditions` entry
-  from `"min": 1` to `"min": 2`, matching the code's enforcement of at least
-  two path-level columns.
+- **`capabilities.json` minimum pathLevels** — retained `"min": 1` in the
+  `conditions` entry; Power BI locks the data well if `min` exceeds the
+  current field count, preventing users from adding even the first column.
+  The two-column requirement is enforced in code with a friendly error message.
 
 ---
 
