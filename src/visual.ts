@@ -319,7 +319,8 @@ export class Visual implements IVisual {
 
         const nodeWidth   = Math.max(4, nodeSettings.nodeWidth.value);
         const nodePadding = Math.max(2, nodeSettings.nodePadding.value);
-        const linkOpacity = Math.min(1, Math.max(0, linkSettings.linkOpacity.value / 100));
+        const linkOpacity    = Math.min(1, Math.max(0, linkSettings.linkOpacity.value / 100));
+        const colorBySource  = linkSettings.colorBySource.value;
 
         const showLabels  = labelSettings.show.value;
         const fontFamily  = labelSettings.fontControl.fontFamily.value;
@@ -717,8 +718,59 @@ export class Visual implements IVisual {
             return downstreamSet.has(src) ? linkOpacity : linkOpacity * 0.15;
         };
 
-        // Ribbon color: theme color keyed by source node label
-        const ribbonColor = (d: LayoutLink): string => color((d.source as LayoutNode).label);
+        // ── Source-trace color map ─────────────────────────────────────────────
+        // When "Color by Source" is on, propagate fractional contributions from
+        // each depth-0 node forward through the graph (topological order by depth)
+        // then color each ribbon by the depth-0 node that contributes the most to
+        // that ribbon's source node.  All ribbons tracing back to the same origin
+        // get the same theme color, making flows visually continuous left-to-right.
+        let dominantSourceLabel: Map<string, string> | null = null;
+        if (colorBySource) {
+            // contrib: node.name → Map<depth0NodeName, fraction>  (fractions sum to ~1)
+            const contrib   = new Map<string, Map<string, number>>();
+            const depth0Lbl = new Map<string, string>();   // depth-0 name → display label
+
+            const sortedNodes = [...graph.nodes as LayoutNode[]]
+                .sort((a, b) => (a.depth ?? 0) - (b.depth ?? 0));
+
+            for (const nd of sortedNodes) {
+                if ((nd.depth ?? 0) === 0) {
+                    contrib.set(nd.name, new Map([[nd.name, 1.0]]));
+                    depth0Lbl.set(nd.name, nd.label);
+                } else {
+                    const m    = new Map<string, number>();
+                    const totV = nd.value ?? 0;
+                    if (totV > 0) {
+                        for (const lnk of (nd.targetLinks ?? []) as LayoutLink[]) {
+                            const src  = lnk.source as LayoutNode;
+                            const frac = (lnk.value ?? 0) / totV;
+                            (contrib.get(src.name) ?? new Map()).forEach(
+                                (f, s) => m.set(s, (m.get(s) ?? 0) + f * frac)
+                            );
+                        }
+                    }
+                    contrib.set(nd.name, m);
+                }
+            }
+
+            dominantSourceLabel = new Map<string, string>();
+            for (const nd of graph.nodes as LayoutNode[]) {
+                const m = contrib.get(nd.name) ?? new Map();
+                let bestKey = nd.name; let bestF = -1;
+                m.forEach((f, s) => { if (f > bestF) { bestF = f; bestKey = s; } });
+                dominantSourceLabel.set(nd.name, depth0Lbl.get(bestKey) ?? nd.label);
+            }
+        }
+
+        // Ribbon color: theme color keyed by source node label (or dominant depth-0
+        // source label when "Color by Source" is enabled).
+        const ribbonColor = (d: LayoutLink): string => {
+            if (dominantSourceLabel) {
+                const lbl = dominantSourceLabel.get((d.source as LayoutNode).name);
+                if (lbl) return color(lbl);
+            }
+            return color((d.source as LayoutNode).label);
+        };
 
         // ── Links ─────────────────────────────────────────────────────────────
         // Rendered as filled closed paths (not stroked centrelines) so the ribbon

@@ -46,7 +46,14 @@ class LinkSettingsCard extends formattingSettings.SimpleCard {
         }
     });
 
-    public slices = [this.linkOpacity];
+    public colorBySource = new formattingSettings.ToggleSwitch({
+        name: "colorBySource",
+        displayName: "Color by Source",
+        description: "Color each ribbon by the first-column node it originates from, making flows visually traceable from left to right across all columns",
+        value: false
+    });
+
+    public slices = [this.linkOpacity, this.colorBySource];
 }
 
 // ─── Labels card ──────────────────────────────────────────────────────────────

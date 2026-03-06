@@ -12,6 +12,17 @@ The `.pbiviz` file for each release is attached to the corresponding [GitHub Rel
 
 ---
 
+## [1.2.17-beta.1] — 2026-03-06
+
+### Added
+- **Color by Source** (Links card) — when enabled, every ribbon is colored by
+  the first-column node it originates from.  Fractional source contributions are
+  propagated forward through the graph; each ribbon takes the theme color of
+  whichever depth-0 node contributes the most to it.  This makes multi-hop flows
+  visually continuous from the leftmost column to the rightmost column.
+
+---
+
 ## [1.2.16-beta.1] — 2026-03-06
 
 ### Fixed
