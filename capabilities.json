@@ -17,7 +17,7 @@
     {
       "conditions": [
         {
-          "pathLevels": { "min": 1 },
+          "pathLevels": { "min": 2 },
           "value": { "max": 1 }
         }
       ],

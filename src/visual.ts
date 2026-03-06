@@ -4,7 +4,8 @@ import powerbi from "powerbi-visuals-api";
 import VisualConstructorOptions = powerbi.extensibility.visual.VisualConstructorOptions;
 import VisualUpdateOptions = powerbi.extensibility.visual.VisualUpdateOptions;
 import IVisual = powerbi.extensibility.visual.IVisual;
-import IVisualHost = powerbi.extensibility.visual.IVisualHost;
+import IVisualHost    = powerbi.extensibility.visual.IVisualHost;
+import VisualUpdateType = powerbi.VisualUpdateType;
 
 import { FormattingSettingsService } from "powerbi-visuals-utils-formattingmodel";
 import { VisualFormattingSettingsModel } from "./formattingSettings";
@@ -42,13 +43,16 @@ type LayoutGraph = SankeyGraph<NodeDatum, LinkDatum>;
 /**
  * Measure the rendered pixel width of a text string using the browser's
  * canvas 2D context (no layout side-effects, no DOM insertion needed).
+ *
+ * A single canvas element is reused across all calls (module-level singleton)
+ * to avoid the overhead of creating a new HTMLCanvasElement every invocation.
  */
+const _measureCanvas = document.createElement("canvas");
+const _measureCtx    = _measureCanvas.getContext("2d");
 function measureText(text: string, font: string): number {
-    const canvas = document.createElement("canvas");
-    const ctx    = canvas.getContext("2d");
-    if (!ctx) return 0;
-    ctx.font = font;
-    return ctx.measureText(text).width;
+    if (!_measureCtx) return 0;
+    _measureCtx.font = font;
+    return _measureCtx.measureText(text).width;
 }
 
 /** Padding inside pill-shaped label/value backgrounds (px). */
@@ -507,9 +511,9 @@ export class Visual implements IVisual {
         // computed from the raw linkMap — before layout — so we can size the left
         // margin to fit the formatted number string.
         let grandTotalValue = 0;
-        const gtFont = `${gtBold ? "bold " : ""}${gtFontSize}px ${gtFontFamily}`;
         let grandTotalTextW = 0;
         if (showGrandTotal) {
+            const gtFont = `${gtBold ? "bold " : ""}${gtFontSize}px ${gtFontFamily}`;
             linkMap.forEach((value, key) => {
                 const srcKey = key.slice(0, key.indexOf("\x00"));
                 if (srcKey.startsWith("0\x01")) grandTotalValue += value;
@@ -620,7 +624,12 @@ export class Visual implements IVisual {
             // Centre the (possibly narrower) scaled content horizontally.
             const fitTx      = width * (1 - fitK) / 2;
             this.fitTransform = zoomIdentity.translate(fitTx, 0).scale(fitK);
-            this.svg.call(this.zoomBehavior.transform, this.fitTransform);
+            // Only snap to fit-to-viewport on data or resize updates.
+            // Format-pane-only changes (colour, font, etc.) preserve the user's
+            // current zoom/pan state so tweaking settings isn't disruptive.
+            if (options.type & (VisualUpdateType.Data | VisualUpdateType.Resize)) {
+                this.svg.call(this.zoomBehavior.transform, this.fitTransform);
+            }
         }
 
         // Use report theme colours keyed by display label so the same name gets the same colour
@@ -948,26 +957,30 @@ export class Visual implements IVisual {
         // The left margin was expanded accordingly, so the text fits cleanly.
         if (showGrandTotal) {
             const depth0Nodes = graph.nodes.filter(n => (n.depth ?? 0) === 0);
-            const firstX0     = depth0Nodes.reduce((m, n) => Math.min(m, n.x0 ?? 0), Infinity);
-            const firstColY0  = depth0Nodes.reduce((m, n) => Math.min(m, n.y0 ?? 0), Infinity);
-            const firstColY1  = depth0Nodes.reduce((m, n) => Math.max(m, n.y1 ?? 0), 0);
-            const gtY         = (firstColY0 + firstColY1) / 2;   // vertical centre of first column
+            if (depth0Nodes.length > 0) {
+                // All depth-0 nodes share the same x0 by construction; use index [0]
+                // to avoid the Infinity sentinel that reduce() would require otherwise.
+                const firstX0    = depth0Nodes[0].x0 ?? 0;
+                const firstColY0 = depth0Nodes.reduce((m, n) => Math.min(m, n.y0 ?? 0), depth0Nodes[0].y0 ?? 0);
+                const firstColY1 = depth0Nodes.reduce((m, n) => Math.max(m, n.y1 ?? 0), 0);
+                const gtY        = (firstColY0 + firstColY1) / 2;   // vertical centre of first column
 
-            this.container
-                .append("text")
-                .classed("grand-total", true)
-                .attr("pointer-events", "none")
-                .attr("x",                 firstX0 - labelGap)
-                .attr("y",                 gtY)
-                .attr("text-anchor",       "end")
-                .attr("dominant-baseline", "middle")
-                .attr("font-family",       gtFontFamily)
-                .attr("font-size",         `${gtFontSize}px`)
-                .attr("font-weight",       gtBold      ? "bold"      : "normal")
-                .attr("font-style",        gtItalic    ? "italic"    : "normal")
-                .attr("text-decoration",   gtUnderline ? "underline" : "none")
-                .attr("fill",              gtFontColor)
-                .text(grandTotalValue.toLocaleString());
+                this.container
+                    .append("text")
+                    .classed("grand-total", true)
+                    .attr("pointer-events", "none")
+                    .attr("x",                 firstX0 - labelGap)
+                    .attr("y",                 gtY)
+                    .attr("text-anchor",       "end")
+                    .attr("dominant-baseline", "middle")
+                    .attr("font-family",       gtFontFamily)
+                    .attr("font-size",         `${gtFontSize}px`)
+                    .attr("font-weight",       gtBold      ? "bold"      : "normal")
+                    .attr("font-style",        gtItalic    ? "italic"    : "normal")
+                    .attr("text-decoration",   gtUnderline ? "underline" : "none")
+                    .attr("fill",              gtFontColor)
+                    .text(grandTotalValue.toLocaleString());
+            }
         }
 
     }

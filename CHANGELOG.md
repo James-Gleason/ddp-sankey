@@ -12,6 +12,30 @@ The `.pbiviz` file for each release is attached to the corresponding [GitHub Rel
 
 ---
 
+## [1.2.13-beta.1] — 2026-03-06
+
+### Fixed
+- **`measureText` performance** — replaced per-call canvas creation with a
+  module-level singleton `HTMLCanvasElement` / `CanvasRenderingContext2D`.
+  Text measurement no longer allocates a new canvas element on every call.
+- **Grand total scoping** — the `gtFont` string is now constructed only when
+  `showGrandTotal` is true, avoiding unnecessary work on every render when the
+  feature is disabled.
+- **Grand total safety guard** — added a `depth0Nodes.length > 0` check before
+  reading `depth0Nodes[0]`; eliminated the `Infinity` sentinels that the
+  previous `reduce()` calls relied on.  `firstX0` now reads directly from
+  `depth0Nodes[0].x0` (all first-column nodes share the same x-coordinate by
+  construction).
+- **Zoom state preserved on format-pane changes** — the fit-to-viewport
+  transform is now only applied when the update type includes `Data` or
+  `Resize`.  Previously, any format-pane change (e.g. tweaking a colour) would
+  silently reset the user's zoom/pan position.
+- **`capabilities.json` minimum pathLevels** — corrected the `conditions` entry
+  from `"min": 1` to `"min": 2`, matching the code's enforcement of at least
+  two path-level columns.
+
+---
+
 ## [1.2.12-beta.1] — 2026-03-06
 
 ### Changed
