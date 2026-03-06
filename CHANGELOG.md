@@ -12,6 +12,20 @@ The `.pbiviz` file for each release is attached to the corresponding [GitHub Rel
 
 ---
 
+## [1.2.7-beta.1] — 2026-03-05
+
+### Changed
+- **Visual now fills its container** — the Sankey diagram previously reserved
+  up to `max(80 px, fontSize × 7)` of empty margin on both the left and right
+  sides to "make room for labels", but node-name labels always go *inward*
+  (left-half nodes label to the right, right-half nodes label to the left),
+  so those outer margins were never used.  The left/right margin is now a
+  uniform 8 px inset (same as top and bottom), making the layout fill almost
+  the entire visual bounding box.  Links are correspondingly longer and nodes
+  are spread across the full width.
+
+---
+
 ## [1.2.6-beta.1] — 2026-03-05
 
 ### Added

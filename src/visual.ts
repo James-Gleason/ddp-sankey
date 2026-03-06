@@ -470,8 +470,10 @@ export class Visual implements IVisual {
         );
 
         // ── Layout ────────────────────────────────────────────────────────────
-        const labelPad = showLabels ? Math.max(80, fontSize * 7) : 10;
-        const margin   = { top: 10, right: labelPad, bottom: 10, left: labelPad };
+        // Labels always go inward (left-half nodes → right, right-half → left)
+        // so no extra side margin is needed for text — use a small uniform inset
+        // so node edges don't sit flush against the visual boundary.
+        const margin = { top: 8, right: 8, bottom: 8, left: 8 };
         const innerW   = Math.max(10, width  - margin.left - margin.right);
         const innerH   = Math.max(10, height - margin.top  - margin.bottom);
 
