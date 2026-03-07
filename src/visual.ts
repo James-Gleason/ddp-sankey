@@ -1001,8 +1001,13 @@ export class Visual implements IVisual {
                 const nodePrimaryLink = new Map<LayoutNode, LayoutLink>();
 
                 for (const nd of graph.nodes as LayoutNode[]) {
+                    // Mirror flat-mode side logic: left-half (or no incoming) → outgoing ribbon
+                    // so label appears to the right of the node; right-half → incoming ribbon
+                    // so label appears to the left.  Keeps curved labels on the same side as flat.
+                    const isLeftHalf  = (nd.x0 ?? 0) < innerW / 2;
+                    const hasIncoming = ((nd.targetLinks ?? []) as LayoutLink[]).length > 0;
                     const links = (
-                        (nd.depth ?? 0) === 0
+                        (isLeftHalf || !hasIncoming)
                             ? (nd.sourceLinks ?? [])
                             : (nd.targetLinks  ?? [])
                     ) as LayoutLink[];
@@ -1070,10 +1075,10 @@ export class Visual implements IVisual {
                         return;
                     }
 
-                    const isDepth0    = (d.depth ?? 0) === 0;
-                    const startOffset = isDepth0 ? "0%"   : "100%";
-                    const textAnchor  = isDepth0 ? "start" : "end";
-                    const dxShift     = isDepth0 ? "8"    : "-8";
+                    const usesOutgoing = (d.x0 ?? 0) < innerW / 2 || ((d.targetLinks ?? []) as LayoutLink[]).length === 0;
+                    const startOffset  = usesOutgoing ? "0%"   : "100%";
+                    const textAnchor   = usesOutgoing ? "start" : "end";
+                    const dxShift      = usesOutgoing ? "8"    : "-8";
 
                     select(this).append("text")
                         .attr("dominant-baseline", "central")
@@ -1099,15 +1104,15 @@ export class Visual implements IVisual {
                         const pillPathEl = grp.select<SVGPathElement>("path.label-pill-path").node();
                         if (!tpEl || !pillPathEl) return;
 
-                        const isDepth0 = (d.depth ?? 0) === 0;
-                        const textLen  = tpEl.getComputedTextLength();
-                        const pathLen  = pillPathEl.getTotalLength();
-                        const pillW    = textLen + PILL_PAD_H * 2;
+                        const usesOutgoing = (d.x0 ?? 0) < innerW / 2 || ((d.targetLinks ?? []) as LayoutLink[]).length === 0;
+                        const textLen      = tpEl.getComputedTextLength();
+                        const pathLen      = pillPathEl.getTotalLength();
+                        const pillW        = textLen + PILL_PAD_H * 2;
 
                         // start-anchor at 0% with dx=8 → pill starts 8px from path origin
                         // end-anchor at 100% with dx=-8 → pill ends 8px before path end
                         let pillStart: number;
-                        if (isDepth0) {
+                        if (usesOutgoing) {
                             pillStart = Math.max(0, 8 - PILL_PAD_H);
                         } else {
                             pillStart = pathLen - 8 - textLen - PILL_PAD_H;
