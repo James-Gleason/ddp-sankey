@@ -13,3 +13,8 @@ webpack.statistics.prod.html
 Thumbs.db
 *.suo
 .vs/
+
+# Scratch / diagnostic scripts
+diagnose-patch.ps1
+read-sections.ps1
+.release-notes.md

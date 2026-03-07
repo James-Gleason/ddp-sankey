@@ -17,14 +17,13 @@ Drag two or more columns into **Path Levels** and a numeric measure into **Value
 |---|---|
 | **Multi-level paths** | Drag any number of columns into Path Levels; each consecutive pair becomes a column of nodes |
 | **Theme-aware colours** | Nodes use `host.colorPalette` so they match your report's theme automatically |
-| **Color by Source** | Optionally color every ribbon by the depth-0 node it originates from, making flows visually traceable across all columns |
+| **Color by Source** | Optionally color every flow by the depth-0 node it originates from, making flows visually traceable across all columns |
 | **Blank value support** | Null / empty cells are shown as a `(Blank)` node rather than being silently dropped; each blank is unique to its parent path |
-| **Cross-filtering** | Click a node or ribbon to filter other visuals on the page; Ctrl/Cmd-click for multi-select; click the background to clear |
+| **Cross-filtering** | Click a node or flow to filter other visuals on the page; Ctrl/Cmd-click for multi-select; click the background to clear |
 | **Zoom & pan** | Scroll to zoom, drag to pan, double-click to reset |
 | **Field-well ordering** | Top-to-bottom order in the Path Levels field well maps left-to-right in the visual |
-| **Tapered ribbons** | Each ribbon end independently matches the allocated height on that node face; ribbons rendered as filled paths that taper smoothly between source and target widths |
-| **Follow Link Path labels** | Node labels can curve to follow the arc of their primary ribbon rather than staying horizontal |
-| **Grand Total** | Optional total displayed to the left of the first column, showing the top-line flow volume entering the diagram |
+| **Tapered flows** | Each flow end independently matches the allocated height on that node face, tapering smoothly between source and target widths |
+| **Follow Flow Path labels** | Node labels can curve to follow the arc of their primary flow rather than staying horizontal |
 
 ---
 
@@ -34,35 +33,30 @@ Drag two or more columns into **Path Levels** and a numeric measure into **Value
 - **Node Width (px)** — width of each node rectangle (default 20)
 - **Node Padding (px)** — vertical gap between nodes in the same column (default 12)
 
-### Links
-- **Link Opacity** — ribbon transparency, 0–100 % (default 45 %)
-- **Color by Source** — toggle to color all ribbons by their originating (leftmost) node
+### Flows
+- **Flow Opacity** — flow transparency, 0–100 % (default 45 %)
+- **Color by Source** — toggle to color all flows by their originating (leftmost) node
 
 ### Labels
 - **Show Labels** — toggle node name labels on/off
+- **Position** — `Inside` (default, labels appear between columns alongside flows) or `Outside` (labels appear in a dedicated margin flanking the diagram)
+- **Follow Flow Path** — when on, each label curves to follow the arc of the node's primary flow; background pill curves with it
 - **Font** — family, size, bold, italic, underline
 - **Font Color**
-- **Position** — `Inside` (default, labels appear between columns alongside ribbons) or `Outside` (labels appear in a dedicated margin flanking the diagram)
-- **Follow Link Path** — when on, each label curves to follow the arc of the node's primary ribbon; background pill curves with it
 - **Background** — toggle pill-shaped background behind each label
 - **Background Color** — default white
 - **Transparency** — 0 % (opaque) → 100 % (invisible), default 20 %
 
-### Values
-- **Show Values** — toggle value labels on/off
-- **Show On** — `Nodes` (total per node) or `Ribbons` (value per flow)
+### Data Labels
+- **Show Data Labels** — toggle value labels on/off
+- **Show On** — `Nodes` (total per node) or `Flows` (value per flow)
 - **Position** — `Inside`, `Outside`, or `Auto` (auto picks based on node height vs font size)
-- **Alignment** — `Left`, `Center` (default), or `Right` — positions ribbon value labels near the source node, mid-span, or near the target node
+- **Alignment** — `Left`, `Center` (default), or `Right` — positions flow value labels near the source node, mid-span, or near the target node
 - **Font** — family, size, bold, italic, underline
 - **Font Color**
-- **Background** — toggle pill-shaped background behind each value label
+- **Background** — toggle pill-shaped background behind each data label
 - **Background Color** — default white
 - **Transparency** — 0 % (opaque) → 100 % (invisible), default 20 %
-
-### Grand Total
-- **Show Grand Total** — toggle the grand total label on/off
-- **Font** — family, size (default 14), bold (default on), italic, underline
-- **Font Color**
 
 ---
 
@@ -83,7 +77,7 @@ Node.js is required. npm is not in the default shell PATH on the build machine, 
 powershell.exe -ExecutionPolicy Bypass -File "build.ps1"
 ```
 
-Output: `dist\DDP_Sankey_1.2.21.0.pbiviz` (filename always matches the current version)
+Output: `dist\DDP_Sankey_1.2.22.0.pbiviz` (filename always matches the current version)
 
 Install the `.pbiviz` in Power BI Desktop via **Home → Import a visual from a file**.
 
