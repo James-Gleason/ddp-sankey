@@ -119,6 +119,13 @@ class LabelSettingsCard extends formattingSettings.SimpleCard {
         value: labelPositionItems[0]   // default: Inside
     });
 
+    public followPath = new formattingSettings.ToggleSwitch({
+        name: "followPath",
+        displayName: "Follow Link Path",
+        description: "Curve labels (and their background pills) to follow the arc of each node's primary ribbon rather than staying horizontal.",
+        value: false
+    });
+
     public showBackground = new formattingSettings.ToggleSwitch({
         name: "showBackground",
         displayName: "Background",
@@ -143,7 +150,7 @@ class LabelSettingsCard extends formattingSettings.SimpleCard {
     });
 
     public topLevelSlice = this.show;
-    public slices = [this.fontControl, this.fontColor, this.position, this.showBackground, this.backgroundColor, this.backgroundTransparency];
+    public slices = [this.fontControl, this.fontColor, this.position, this.followPath, this.showBackground, this.backgroundColor, this.backgroundTransparency];
 }
 
 // ─── Values card ──────────────────────────────────────────────────────────────
@@ -195,13 +202,6 @@ class ValueSettingsCard extends formattingSettings.SimpleCard {
         description: "Horizontal alignment of value labels on ribbons — Left anchors near the source node, Center places them mid-span, Right anchors near the target node",
         items: alignmentItems,
         value: alignmentItems[1]   // default: Center
-    });
-
-    public followPath = new formattingSettings.ToggleSwitch({
-        name: "followPath",
-        displayName: "Follow Link Path",
-        description: "Curve value labels (and their background pills) to follow the arc of each ribbon rather than remaining horizontal. Applies to ribbon labels only.",
-        value: false
     });
 
     public fontControl = new formattingSettings.FontControl({
@@ -264,7 +264,7 @@ class ValueSettingsCard extends formattingSettings.SimpleCard {
     });
 
     public topLevelSlice = this.show;
-    public slices = [this.target, this.position, this.alignment, this.followPath, this.fontControl, this.fontColor, this.showBackground, this.backgroundColor, this.backgroundTransparency];
+    public slices = [this.target, this.position, this.alignment, this.fontControl, this.fontColor, this.showBackground, this.backgroundColor, this.backgroundTransparency];
 }
 
 // ─── Grand Total card ─────────────────────────────────────────────────────────

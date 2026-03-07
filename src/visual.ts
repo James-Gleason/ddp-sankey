@@ -362,14 +362,14 @@ export class Visual implements IVisual {
         const italic      = labelSettings.fontControl.italic?.value    ?? false;
         const underline   = labelSettings.fontControl.underline?.value ?? false;
         const fontColor   = labelSettings.fontColor.value?.value       ?? "#333333";
-        const labelPos    = String(labelSettings.position.value?.value  ?? "inside");
-        const labelOutside = labelPos === "outside";
+        const labelPos      = String(labelSettings.position.value?.value  ?? "inside");
+        const labelOutside   = labelPos === "outside";
+        const labelFollowPath = (labelSettings.followPath.value ?? false);
 
         const showValues  = valueSettings.show.value;
         const valuePos    = String(valueSettings.position.value?.value    ?? "auto");
         const valueTarget = String(valueSettings.target.value?.value      ?? "nodes");
         const valueAlign  = String(valueSettings.alignment.value?.value   ?? "center");
-        const followPath  = (valueSettings.followPath.value ?? false) && valueTarget === "ribbons";
         const vFontFamily = valueSettings.fontControl.fontFamily.value;
         const vFontSize   = Math.max(8, valueSettings.fontControl.fontSize.value);
         const vBold       = valueSettings.fontControl.bold?.value      ?? false;
@@ -989,56 +989,191 @@ export class Visual implements IVisual {
                 .classed("label-group", true)
                 .attr("pointer-events", "none");
 
-            // Placeholder pill rect — sized after text is in the DOM
-            if (labelBgActive) {
-                labelGs.append("rect")
-                    .classed("label-pill", true)
-                    .attr("fill",    labelBgColor)
-                    .attr("opacity", labelBgOpacity);
-            }
+            if (labelFollowPath) {
+                // ── Curved mode: labels follow their primary ribbon ────────────
+                // Each node's label rides its primary ribbon's bezier centreline
+                // via <textPath>.  Primary = largest outgoing ribbon for depth-0
+                // nodes, largest incoming ribbon for all others.  The background
+                // pill (when enabled) is a partial stroke along the same path.
 
-            labelGs.append("text")
-                .attr("x", d => {
-                    if (labelOutside) {
-                        // Outside: outermost columns face into their dedicated margin
-                        if ((d.depth  ?? 0) === 0) return (d.x0 ?? 0) - labelGap;  // leftmost → left
-                        if ((d.height ?? 0) === 0) return (d.x1 ?? 0) + labelGap;  // rightmost → right
-                    }
-                    // Inside (or intermediate outside): go inward between adjacent columns
-                    return (d.x0 ?? 0) < innerW / 2 ? (d.x1 ?? 0) + labelGap : (d.x0 ?? 0) - labelGap;
-                })
-                .attr("y",  d => ((d.y0 ?? 0) + (d.y1 ?? 0)) / 2)
-                .attr("dy",              "0.35em")
-                .attr("text-anchor", d => {
-                    if (labelOutside) {
-                        if ((d.depth  ?? 0) === 0) return "end";    // leftmost → text extends left
-                        if ((d.height ?? 0) === 0) return "start";  // rightmost → text extends right
-                    }
-                    return (d.x0 ?? 0) < innerW / 2 ? "start" : "end";
-                })
-                .attr("font-family",     fontFamily)
-                .attr("font-size",       `${fontSize}px`)
-                .attr("font-weight",     bold      ? "bold"      : "normal")
-                .attr("font-style",      italic    ? "italic"    : "normal")
-                .attr("text-decoration", underline ? "underline" : "none")
-                .attr("fill",            fontColor)
-                .text(d => d.label);
+                // 1. Determine the primary link for every node.
+                const labelLinkIds    = new Map<LayoutLink, string>();
+                const nodePrimaryLink = new Map<LayoutNode, LayoutLink>();
 
-            // Size each pill to its text's bounding box now that the text is in the DOM
-            if (labelBgActive) {
-                labelGs.each(function () {
-                    const grp    = select(this);
-                    const textEl = grp.select<SVGTextElement>("text").node();
-                    if (!textEl) return;
-                    const bb = textEl.getBBox();
-                    grp.select<SVGRectElement>("rect.label-pill")
-                        .attr("x",      bb.x - PILL_PAD_H)
-                        .attr("y",      bb.y - PILL_PAD_V)
-                        .attr("width",  bb.width  + PILL_PAD_H * 2)
-                        .attr("height", bb.height + PILL_PAD_V * 2)
-                        .attr("rx",    (bb.height + PILL_PAD_V * 2) / 2)
-                        .attr("ry",    (bb.height + PILL_PAD_V * 2) / 2);
+                for (const nd of graph.nodes as LayoutNode[]) {
+                    const links = (
+                        (nd.depth ?? 0) === 0
+                            ? (nd.sourceLinks ?? [])
+                            : (nd.targetLinks  ?? [])
+                    ) as LayoutLink[];
+                    if (links.length === 0) continue;
+                    const primary = links.reduce((best, l) =>
+                        ((l.value ?? 0) > (best.value ?? 0) ? l : best));
+                    nodePrimaryLink.set(nd, primary);
+                }
+
+                // 2. Register each unique primary link centreline as a <defs> path.
+                const defs = this.container.append("defs");
+                let pathIdx = 0;
+                for (const link of nodePrimaryLink.values()) {
+                    if (labelLinkIds.has(link)) continue;
+                    const id    = `${this.instanceUid}-lb-${pathIdx++}`;
+                    const srcX1 = (link.source as LayoutNode).x1 ?? 0;
+                    const tgtX0 = (link.target as LayoutNode).x0 ?? 0;
+                    const cx    = (srcX1 + tgtX0) / 2;
+                    labelLinkIds.set(link, id);
+                    defs.append("path")
+                        .attr("id", id)
+                        .attr("d", `M${srcX1},${link.y0} C${cx},${link.y0} ${cx},${link.y1} ${tgtX0},${link.y1}`);
+                }
+
+                // 3. Curved pill stroke paths — dasharray sized after text measurement below.
+                if (labelBgActive) {
+                    labelGs.each(function (d: LayoutNode) {
+                        const link = nodePrimaryLink.get(d);
+                        if (!link) return;
+                        const srcX1 = (link.source as LayoutNode).x1 ?? 0;
+                        const tgtX0 = (link.target as LayoutNode).x0 ?? 0;
+                        const cx    = (srcX1 + tgtX0) / 2;
+                        select(this).append("path")
+                            .classed("label-pill-path", true)
+                            .attr("d", `M${srcX1},${link.y0} C${cx},${link.y0} ${cx},${link.y1} ${tgtX0},${link.y1}`)
+                            .attr("fill",           "none")
+                            .attr("stroke",         labelBgColor)
+                            .attr("stroke-opacity", labelBgOpacity)
+                            .attr("stroke-width",   fontSize + PILL_PAD_V * 2)
+                            .attr("stroke-linecap", "round");
+                    });
+                }
+
+                // 4. Text on path.  Depth-0 nodes anchor at the source (left) end;
+                //    all others anchor at the target (right) end, hugging their node.
+                labelGs.each(function (d: LayoutNode) {
+                    const link   = nodePrimaryLink.get(d);
+                    const pathId = link ? labelLinkIds.get(link) : undefined;
+
+                    if (!pathId) {
+                        // Fallback for nodes with no primary ribbon: flat horizontal label.
+                        const isLeft = (d.x0 ?? 0) < innerW / 2;
+                        select(this).append("text")
+                            .attr("x",           isLeft ? (d.x1 ?? 0) + labelGap : (d.x0 ?? 0) - labelGap)
+                            .attr("y",           ((d.y0 ?? 0) + (d.y1 ?? 0)) / 2)
+                            .attr("dy",          "0.35em")
+                            .attr("text-anchor", isLeft ? "start" : "end")
+                            .attr("font-family",     fontFamily)
+                            .attr("font-size",       `${fontSize}px`)
+                            .attr("font-weight",     bold      ? "bold"      : "normal")
+                            .attr("font-style",      italic    ? "italic"    : "normal")
+                            .attr("text-decoration", underline ? "underline" : "none")
+                            .attr("fill",            fontColor)
+                            .text(d.label);
+                        return;
+                    }
+
+                    const isDepth0    = (d.depth ?? 0) === 0;
+                    const startOffset = isDepth0 ? "0%"   : "100%";
+                    const textAnchor  = isDepth0 ? "start" : "end";
+                    const dxShift     = isDepth0 ? "8"    : "-8";
+
+                    select(this).append("text")
+                        .attr("dominant-baseline", "central")
+                        .attr("font-family",     fontFamily)
+                        .attr("font-size",       `${fontSize}px`)
+                        .attr("font-weight",     bold      ? "bold"      : "normal")
+                        .attr("font-style",      italic    ? "italic"    : "normal")
+                        .attr("text-decoration", underline ? "underline" : "none")
+                        .attr("fill",            fontColor)
+                        .append("textPath")
+                        .attr("href",        `#${pathId}`)
+                        .attr("startOffset", startOffset)
+                        .attr("text-anchor", textAnchor)
+                        .attr("dx",          dxShift)
+                        .text(d.label);
                 });
+
+                // 5. Measure text and position the curved pill dash.
+                if (labelBgActive) {
+                    labelGs.each(function (d: LayoutNode) {
+                        const grp        = select(this);
+                        const tpEl       = grp.select<SVGTextPathElement>("textPath").node();
+                        const pillPathEl = grp.select<SVGPathElement>("path.label-pill-path").node();
+                        if (!tpEl || !pillPathEl) return;
+
+                        const isDepth0 = (d.depth ?? 0) === 0;
+                        const textLen  = tpEl.getComputedTextLength();
+                        const pathLen  = pillPathEl.getTotalLength();
+                        const pillW    = textLen + PILL_PAD_H * 2;
+
+                        // start-anchor at 0% with dx=8 → pill starts 8px from path origin
+                        // end-anchor at 100% with dx=-8 → pill ends 8px before path end
+                        let pillStart: number;
+                        if (isDepth0) {
+                            pillStart = Math.max(0, 8 - PILL_PAD_H);
+                        } else {
+                            pillStart = pathLen - 8 - textLen - PILL_PAD_H;
+                        }
+                        pillStart = Math.max(0, pillStart);
+
+                        grp.select<SVGPathElement>("path.label-pill-path")
+                            .attr("stroke-dasharray",  `${pillW},99999`)
+                            .attr("stroke-dashoffset", -pillStart);
+                    });
+                }
+
+            } else {
+                // ── Flat mode: horizontal text + rounded-rect pill (original) ──
+
+                // Placeholder pill rect — sized after text is in the DOM
+                if (labelBgActive) {
+                    labelGs.append("rect")
+                        .classed("label-pill", true)
+                        .attr("fill",    labelBgColor)
+                        .attr("opacity", labelBgOpacity);
+                }
+
+                labelGs.append("text")
+                    .attr("x", d => {
+                        if (labelOutside) {
+                            // Outside: outermost columns face into their dedicated margin
+                            if ((d.depth  ?? 0) === 0) return (d.x0 ?? 0) - labelGap;  // leftmost → left
+                            if ((d.height ?? 0) === 0) return (d.x1 ?? 0) + labelGap;  // rightmost → right
+                        }
+                        // Inside (or intermediate outside): go inward between adjacent columns
+                        return (d.x0 ?? 0) < innerW / 2 ? (d.x1 ?? 0) + labelGap : (d.x0 ?? 0) - labelGap;
+                    })
+                    .attr("y",  d => ((d.y0 ?? 0) + (d.y1 ?? 0)) / 2)
+                    .attr("dy",              "0.35em")
+                    .attr("text-anchor", d => {
+                        if (labelOutside) {
+                            if ((d.depth  ?? 0) === 0) return "end";    // leftmost → text extends left
+                            if ((d.height ?? 0) === 0) return "start";  // rightmost → text extends right
+                        }
+                        return (d.x0 ?? 0) < innerW / 2 ? "start" : "end";
+                    })
+                    .attr("font-family",     fontFamily)
+                    .attr("font-size",       `${fontSize}px`)
+                    .attr("font-weight",     bold      ? "bold"      : "normal")
+                    .attr("font-style",      italic    ? "italic"    : "normal")
+                    .attr("text-decoration", underline ? "underline" : "none")
+                    .attr("fill",            fontColor)
+                    .text(d => d.label);
+
+                // Size each pill to its text's bounding box now that the text is in the DOM
+                if (labelBgActive) {
+                    labelGs.each(function () {
+                        const grp    = select(this);
+                        const textEl = grp.select<SVGTextElement>("text").node();
+                        if (!textEl) return;
+                        const bb = textEl.getBBox();
+                        grp.select<SVGRectElement>("rect.label-pill")
+                            .attr("x",      bb.x - PILL_PAD_H)
+                            .attr("y",      bb.y - PILL_PAD_V)
+                            .attr("width",  bb.width  + PILL_PAD_H * 2)
+                            .attr("height", bb.height + PILL_PAD_V * 2)
+                            .attr("rx",    (bb.height + PILL_PAD_V * 2) / 2)
+                            .attr("ry",    (bb.height + PILL_PAD_V * 2) / 2);
+                    });
+                }
             }
         }
 
@@ -1114,165 +1249,55 @@ export class Visual implements IVisual {
 
         // ── Value labels — ribbons ─────────────────────────────────────────────
         if (showValues && valueTarget === "ribbons") {
-            const pillH = vFontSize + PILL_PAD_V * 2;
+            const ribbonValueGs = this.container
+                .append("g")
+                .classed("link-labels", true)
+                .attr("pointer-events", "none")
+                .selectAll<SVGGElement, LayoutLink>("g")
+                .data(graph.links)
+                .join("g");
 
-            if (followPath) {
-                // ── Curved mode ────────────────────────────────────────────────
-                // Text follows the ribbon's cubic-bezier centerline via <textPath>.
-                // The background pill is rendered as a partial stroke along the
-                // same path using stroke-dasharray to cover only the text span.
+            if (valueBgActive) {
+                ribbonValueGs.append("rect")
+                    .classed("value-pill", true)
+                    .attr("fill",    valueBgColor)
+                    .attr("opacity", valueBgOpacity);
+            }
 
-                // Centerline paths stored in <defs> (never rendered directly).
-                // IDs are prefixed with this.instanceUid to avoid collisions across
-                // multiple visual instances on the same report page.
-                // linkIds maps each LayoutLink to its unique defs path ID so D3
-                // callbacks can look up the id by datum without needing the index.
-                const defs    = this.container.append("defs");
-                const linkIds = new Map<LayoutLink, string>();
-                graph.links.forEach((d: LayoutLink, i: number) => {
-                    const id    = `${this.instanceUid}-cl-${i}`;
+            // Position the label along the ribbon span according to alignment
+            ribbonValueGs.append("text")
+                .attr("x", (d: LayoutLink) => {
                     const srcX1 = (d.source as LayoutNode).x1 ?? 0;
                     const tgtX0 = (d.target as LayoutNode).x0 ?? 0;
-                    const cx    = (srcX1 + tgtX0) / 2;
-                    linkIds.set(d, id);
-                    defs.append("path")
-                        .attr("id", id)
-                        .attr("d", `M${srcX1},${d.y0} C${cx},${d.y0} ${cx},${d.y1} ${tgtX0},${d.y1}`);
+                    if (valueAlign === "left")  return srcX1 + 4;
+                    if (valueAlign === "right") return tgtX0 - 4;
+                    return (srcX1 + tgtX0) / 2;
+                })
+                .attr("y",           (d: LayoutLink) => (d.y0 + d.y1) / 2)
+                .attr("dy",          "0.35em")
+                .attr("text-anchor", valueAlign === "left" ? "start" : valueAlign === "right" ? "end" : "middle")
+                .attr("font-family",     vFontFamily)
+                .attr("font-size",       `${vFontSize}px`)
+                .attr("font-weight",     vBold     ? "bold"      : "normal")
+                .attr("font-style",      vItalic   ? "italic"    : "normal")
+                .attr("text-decoration", vUnderline ? "underline" : "none")
+                .attr("fill",            vFontColor)
+                .text((d: LayoutLink) => d.value.toLocaleString());
+
+            if (valueBgActive) {
+                ribbonValueGs.each(function () {
+                    const grp    = select(this);
+                    const textEl = grp.select<SVGTextElement>("text").node();
+                    if (!textEl) return;
+                    const bb = textEl.getBBox();
+                    grp.select<SVGRectElement>("rect.value-pill")
+                        .attr("x",      bb.x - PILL_PAD_H)
+                        .attr("y",      bb.y - PILL_PAD_V)
+                        .attr("width",  bb.width  + PILL_PAD_H * 2)
+                        .attr("height", bb.height + PILL_PAD_V * 2)
+                        .attr("rx",    (bb.height + PILL_PAD_V * 2) / 2)
+                        .attr("ry",    (bb.height + PILL_PAD_V * 2) / 2);
                 });
-
-                // Alignment → textPath attributes
-                const startOffset = valueAlign === "left" ? "0%"   : valueAlign === "right" ? "100%" : "50%";
-                const textAnchor  = valueAlign === "left" ? "start" : valueAlign === "right" ? "end"  : "middle";
-                const dxShift     = valueAlign === "left" ? "8"    : valueAlign === "right" ? "-8"   : "0";
-
-                const ribbonValueGs = this.container
-                    .append("g")
-                    .classed("link-labels", true)
-                    .attr("pointer-events", "none")
-                    .selectAll<SVGGElement, LayoutLink>("g")
-                    .data(graph.links)
-                    .join("g");
-
-                // Curved pill: a partial stroke along the centerline path.
-                // stroke-dasharray / dashoffset are set after text measurement below.
-                if (valueBgActive) {
-                    ribbonValueGs.append("path")
-                        .classed("value-pill-path", true)
-                        .attr("d", (d: LayoutLink) => {
-                            const srcX1 = (d.source as LayoutNode).x1 ?? 0;
-                            const tgtX0 = (d.target as LayoutNode).x0 ?? 0;
-                            const cx    = (srcX1 + tgtX0) / 2;
-                            return `M${srcX1},${d.y0} C${cx},${d.y0} ${cx},${d.y1} ${tgtX0},${d.y1}`;
-                        })
-                        .attr("fill",           "none")
-                        .attr("stroke",         valueBgColor)
-                        .attr("stroke-opacity", valueBgOpacity)
-                        .attr("stroke-width",   pillH)
-                        .attr("stroke-linecap", "round");
-                }
-
-                // Text on path
-                ribbonValueGs.append("text")
-                    .attr("dominant-baseline", "central")
-                    .attr("font-family",       vFontFamily)
-                    .attr("font-size",         `${vFontSize}px`)
-                    .attr("font-weight",       vBold      ? "bold"      : "normal")
-                    .attr("font-style",        vItalic    ? "italic"    : "normal")
-                    .attr("text-decoration",   vUnderline ? "underline" : "none")
-                    .attr("fill",              vFontColor)
-                    .append("textPath")
-                    .attr("href",        (d: LayoutLink) => `#${linkIds.get(d) ?? ""}`)
-                    .attr("startOffset", startOffset)
-                    .attr("text-anchor", textAnchor)
-                    .attr("dx",          dxShift)
-                    .text((d: LayoutLink) => d.value.toLocaleString());
-
-                // Measure text length and position the pill dash accordingly
-                if (valueBgActive) {
-                    // valueAlign is captured from the outer lexical scope via closure
-                    ribbonValueGs.each(function () {
-                        const grp        = select(this);
-                        const tpEl       = grp.select<SVGTextPathElement>("textPath").node();
-                        const pillPathEl = grp.select<SVGPathElement>("path.value-pill-path").node();
-                        if (!tpEl || !pillPathEl) return;
-
-                        const textLen = tpEl.getComputedTextLength();
-                        const pathLen = pillPathEl.getTotalLength();
-                        const pillW   = textLen + PILL_PAD_H * 2;
-
-                        // Compute where along the arc the pill dash should start.
-                        // Matches the text position implied by startOffset + dx + text-anchor.
-                        let pillStart: number;
-                        if (valueAlign === "left") {
-                            // text starts at dx=8 from path origin; pill left-pads by PILL_PAD_H
-                            pillStart = Math.max(0, 8 - PILL_PAD_H);
-                        } else if (valueAlign === "right") {
-                            // text end-anchor at pathLen, pulled back by dx=8
-                            pillStart = pathLen - 8 - textLen - PILL_PAD_H;
-                        } else {
-                            // centred at pathLen / 2
-                            pillStart = pathLen / 2 - pillW / 2;
-                        }
-                        pillStart = Math.max(0, pillStart);
-
-                        grp.select<SVGPathElement>("path.value-pill-path")
-                            .attr("stroke-dasharray",  `${pillW},99999`)
-                            .attr("stroke-dashoffset", -pillStart);
-                    });
-                }
-
-            } else {
-                // ── Flat mode: horizontal text + rounded-rect pill (original) ──
-                const ribbonValueGs = this.container
-                    .append("g")
-                    .classed("link-labels", true)
-                    .attr("pointer-events", "none")
-                    .selectAll<SVGGElement, LayoutLink>("g")
-                    .data(graph.links)
-                    .join("g");
-
-                if (valueBgActive) {
-                    ribbonValueGs.append("rect")
-                        .classed("value-pill", true)
-                        .attr("fill",    valueBgColor)
-                        .attr("opacity", valueBgOpacity);
-                }
-
-                // Position the label along the ribbon span according to alignment
-                ribbonValueGs.append("text")
-                    .attr("x", (d: LayoutLink) => {
-                        const srcX1 = (d.source as LayoutNode).x1 ?? 0;
-                        const tgtX0 = (d.target as LayoutNode).x0 ?? 0;
-                        if (valueAlign === "left")  return srcX1 + 4;
-                        if (valueAlign === "right") return tgtX0 - 4;
-                        return (srcX1 + tgtX0) / 2;
-                    })
-                    .attr("y",           (d: LayoutLink) => (d.y0 + d.y1) / 2)
-                    .attr("dy",          "0.35em")
-                    .attr("text-anchor", valueAlign === "left" ? "start" : valueAlign === "right" ? "end" : "middle")
-                    .attr("font-family",     vFontFamily)
-                    .attr("font-size",       `${vFontSize}px`)
-                    .attr("font-weight",     vBold     ? "bold"      : "normal")
-                    .attr("font-style",      vItalic   ? "italic"    : "normal")
-                    .attr("text-decoration", vUnderline ? "underline" : "none")
-                    .attr("fill",            vFontColor)
-                    .text((d: LayoutLink) => d.value.toLocaleString());
-
-                if (valueBgActive) {
-                    ribbonValueGs.each(function () {
-                        const grp    = select(this);
-                        const textEl = grp.select<SVGTextElement>("text").node();
-                        if (!textEl) return;
-                        const bb = textEl.getBBox();
-                        grp.select<SVGRectElement>("rect.value-pill")
-                            .attr("x",      bb.x - PILL_PAD_H)
-                            .attr("y",      bb.y - PILL_PAD_V)
-                            .attr("width",  bb.width  + PILL_PAD_H * 2)
-                            .attr("height", bb.height + PILL_PAD_V * 2)
-                            .attr("rx",    (bb.height + PILL_PAD_V * 2) / 2)
-                            .attr("ry",    (bb.height + PILL_PAD_V * 2) / 2);
-                    });
-                }
             }
         }
 

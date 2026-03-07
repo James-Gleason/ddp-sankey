@@ -101,6 +101,10 @@
             ]
           }
         },
+        "followPath": {
+          "displayName": "Follow Link Path",
+          "type": { "bool": true }
+        },
         "showBackground": {
           "displayName": "Background",
           "type": { "bool": true }
@@ -150,10 +154,6 @@
               { "displayName": "Right",  "value": "right"  }
             ]
           }
-        },
-        "followPath": {
-          "displayName": "Follow Link Path",
-          "type": { "bool": true }
         },
         "fontFamily": {
           "displayName": "Font Family",
