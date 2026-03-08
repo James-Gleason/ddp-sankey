@@ -12,6 +12,24 @@ The `.pbiviz` file for each release is attached to the corresponding [GitHub Rel
 
 ---
 
+## [1.2.27-beta.1] — 2026-03-07
+
+### Fixed
+- **Follow Flow Path + Label Background — text not centred in pill** — when
+  *Follow Flow Path* and *Label Background* were both enabled, the label text
+  was left-aligned (outgoing nodes) or right-aligned (incoming nodes) rather
+  than centred inside the pill capsule. The root cause was a unit mismatch
+  between `dx="8"` (user-space units) on the `<textPath>` element and the
+  `stroke-dashoffset` value (arc-length units) on the pill stroke, combined
+  with `text-anchor="start"/"end"` placing the text flush against one edge of
+  the pill. The fix: after the pill dasharray/dashoffset are computed, the
+  textPath is switched to `text-anchor="middle"` with `dx="0"` and
+  `startOffset` set to the exact arc-length percentage of the pill's midpoint,
+  so the text is equidistant from both round caps. Non-pill curved labels and
+  flat-mode labels are unaffected.
+
+---
+
 ## [1.2.26-beta.1] — 2026-03-07
 
 ### Fixed

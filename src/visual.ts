@@ -1111,6 +1111,14 @@ export class Visual implements IVisual {
                             grp.select<SVGPathElement>("path.label-pill-path")
                                 .attr("stroke-dasharray",  `${pillW},99999`)
                                 .attr("stroke-dashoffset", -pillStart);
+                            // Centre the text label within the pill.
+                            // Switch to middle-anchor at the pill's arc midpoint so
+                            // the text is equidistant from both round caps.
+                            const pillCentre = (pillStart + textLen / 2) / pathLen * 100;
+                            grp.select<SVGTextPathElement>("textPath")
+                                .attr("text-anchor", "middle")
+                                .attr("dx",          "0")
+                                .attr("startOffset", `${pillCentre}%`);
                         } else {
                             // ── Flat-fallback node: insert a flat pill behind the text ──
                             const textEl = grp.select<SVGTextElement>("text").node();
