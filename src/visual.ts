@@ -969,7 +969,6 @@ export class Visual implements IVisual {
                 // pill (when enabled) is a partial stroke along the same path.
 
                 // 1. Determine the primary link for every node.
-                const labelLinkIds    = new Map<LayoutLink, string>();
                 const nodePrimaryLink = new Map<LayoutNode, LayoutLink>();
 
                 for (const nd of graph.nodes as LayoutNode[]) {
@@ -989,32 +988,48 @@ export class Visual implements IVisual {
                     nodePrimaryLink.set(nd, primary);
                 }
 
-                // 2. Register each unique primary link centreline as a <defs> path.
+                // 2. Register a per-node label path in <defs>.
+                //    Each path is anchored at the node's vertical midpoint so the
+                //    text always starts/ends at the node centre (matching flat mode),
+                //    while the bezier control points follow the ribbon's natural y-coords
+                //    so the curve still flows toward the ribbon's opposite end.
+                const nodeLabelIds = new Map<LayoutNode, string>();
                 const defs = this.container.append("defs");
                 let pathIdx = 0;
-                for (const link of nodePrimaryLink.values()) {
-                    if (labelLinkIds.has(link)) continue;
-                    const id    = `${this.instanceUid}-lb-${pathIdx++}`;
-                    const srcX1 = (link.source as LayoutNode).x1 ?? 0;
-                    const tgtX0 = (link.target as LayoutNode).x0 ?? 0;
-                    const cx    = (srcX1 + tgtX0) / 2;
-                    labelLinkIds.set(link, id);
+                for (const [nd, link] of nodePrimaryLink.entries()) {
+                    const id       = `${this.instanceUid}-lb-${pathIdx++}`;
+                    const srcX1    = (link.source as LayoutNode).x1 ?? 0;
+                    const tgtX0    = (link.target as LayoutNode).x0 ?? 0;
+                    const cx       = (srcX1 + tgtX0) / 2;
+                    const usesOut  = (nd.x0 ?? 0) < innerW / 2 || ((nd.targetLinks ?? []) as LayoutLink[]).length === 0;
+                    const nodeMidY = ((nd.y0 ?? 0) + (nd.y1 ?? 0)) / 2;
+                    // Anchor start (outgoing) or end (incoming) at the node's y-centre.
+                    const pathD    = usesOut
+                        ? `M${srcX1},${nodeMidY} C${cx},${link.y0} ${cx},${link.y1} ${tgtX0},${link.y1}`
+                        : `M${srcX1},${link.y0} C${cx},${link.y0} ${cx},${link.y1} ${tgtX0},${nodeMidY}`;
+                    nodeLabelIds.set(nd, id);
                     defs.append("path")
                         .attr("id", id)
-                        .attr("d", `M${srcX1},${link.y0} C${cx},${link.y0} ${cx},${link.y1} ${tgtX0},${link.y1}`);
+                        .attr("d", pathD);
                 }
 
                 // 3. Curved pill stroke paths — dasharray sized after text measurement below.
+                //    Use the same per-node anchored path so the pill aligns with the text.
                 if (labelBgActive) {
                     labelGs.each(function (d: LayoutNode) {
                         const link = nodePrimaryLink.get(d);
                         if (!link) return;
-                        const srcX1 = (link.source as LayoutNode).x1 ?? 0;
-                        const tgtX0 = (link.target as LayoutNode).x0 ?? 0;
-                        const cx    = (srcX1 + tgtX0) / 2;
+                        const srcX1    = (link.source as LayoutNode).x1 ?? 0;
+                        const tgtX0    = (link.target as LayoutNode).x0 ?? 0;
+                        const cx       = (srcX1 + tgtX0) / 2;
+                        const usesOut  = (d.x0 ?? 0) < innerW / 2 || ((d.targetLinks ?? []) as LayoutLink[]).length === 0;
+                        const nodeMidY = ((d.y0 ?? 0) + (d.y1 ?? 0)) / 2;
+                        const pathD    = usesOut
+                            ? `M${srcX1},${nodeMidY} C${cx},${link.y0} ${cx},${link.y1} ${tgtX0},${link.y1}`
+                            : `M${srcX1},${link.y0} C${cx},${link.y0} ${cx},${link.y1} ${tgtX0},${nodeMidY}`;
                         select(this).append("path")
                             .classed("label-pill-path", true)
-                            .attr("d", `M${srcX1},${link.y0} C${cx},${link.y0} ${cx},${link.y1} ${tgtX0},${link.y1}`)
+                            .attr("d", pathD)
                             .attr("fill",           "none")
                             .attr("stroke",         labelBgColor)
                             .attr("stroke-opacity", labelBgOpacity)
@@ -1026,8 +1041,7 @@ export class Visual implements IVisual {
                 // 4. Text on path.  Depth-0 nodes anchor at the source (left) end;
                 //    all others anchor at the target (right) end, hugging their node.
                 labelGs.each(function (d: LayoutNode) {
-                    const link   = nodePrimaryLink.get(d);
-                    const pathId = link ? labelLinkIds.get(link) : undefined;
+                    const pathId = nodeLabelIds.get(d);
 
                     if (!pathId) {
                         // Fallback for nodes with no primary ribbon: flat horizontal label.
