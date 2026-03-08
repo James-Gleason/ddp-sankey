@@ -1079,15 +1079,17 @@ export class Visual implements IVisual {
                         const usesOutgoing = (d.x0 ?? 0) < innerW / 2 || ((d.targetLinks ?? []) as LayoutLink[]).length === 0;
                         const textLen      = tpEl.getComputedTextLength();
                         const pathLen      = pillPathEl.getTotalLength();
-                        const pillW        = textLen + PILL_PAD_H * 2;
+                        // Round end-caps on the stroke provide the visual horizontal
+                        // padding — no extra PILL_PAD_H needed here.
+                        const pillW = textLen;
 
-                        // start-anchor at 0% with dx=8 → pill starts 8px from path origin
-                        // end-anchor at 100% with dx=-8 → pill ends 8px before path end
+                        // Align pill with the text: text starts at dx=8 from the path
+                        // origin (outgoing) or ends at pathLen-8 (incoming).
                         let pillStart: number;
                         if (usesOutgoing) {
-                            pillStart = Math.max(0, 8 - PILL_PAD_H);
+                            pillStart = 8;
                         } else {
-                            pillStart = pathLen - 8 - textLen - PILL_PAD_H;
+                            pillStart = pathLen - 8 - textLen;
                         }
                         pillStart = Math.max(0, pillStart);
 
@@ -1099,14 +1101,6 @@ export class Visual implements IVisual {
 
             } else {
                 // ── Flat mode: horizontal text + rounded-rect pill (original) ──
-
-                // Placeholder pill rect — sized after text is in the DOM
-                if (labelBgActive) {
-                    labelGs.append("rect")
-                        .classed("label-pill", true)
-                        .attr("fill",    labelBgColor)
-                        .attr("opacity", labelBgOpacity);
-                }
 
                 labelGs.append("text")
                     .attr("x", d => {
@@ -1135,20 +1129,22 @@ export class Visual implements IVisual {
                     .attr("fill",            fontColor)
                     .text(d => d.label);
 
-                // Size each pill to its text's bounding box now that the text is in the DOM
+                // Insert a stroked-path pill behind the text (same round-cap
+                // technique as curved mode, so both look identical in quality).
                 if (labelBgActive) {
                     labelGs.each(function () {
                         const grp    = select(this);
                         const textEl = grp.select<SVGTextElement>("text").node();
                         if (!textEl) return;
                         const bb = textEl.getBBox();
-                        grp.select<SVGRectElement>("rect.label-pill")
-                            .attr("x",      bb.x - PILL_PAD_H)
-                            .attr("y",      bb.y - PILL_PAD_V)
-                            .attr("width",  bb.width  + PILL_PAD_H * 2)
-                            .attr("height", bb.height + PILL_PAD_V * 2)
-                            .attr("rx",    (bb.height + PILL_PAD_V * 2) / 2)
-                            .attr("ry",    (bb.height + PILL_PAD_V * 2) / 2);
+                        select(this).insert("path", "text")
+                            .classed("label-pill", true)
+                            .attr("d",              `M${bb.x},${bb.y + bb.height / 2} H${bb.x + bb.width}`)
+                            .attr("fill",           "none")
+                            .attr("stroke",         labelBgColor)
+                            .attr("stroke-opacity", labelBgOpacity)
+                            .attr("stroke-width",   bb.height + PILL_PAD_V * 2)
+                            .attr("stroke-linecap", "round");
                     });
                 }
             }
@@ -1160,13 +1156,6 @@ export class Visual implements IVisual {
                 .append("g")
                 .classed("value-group", true)
                 .attr("pointer-events", "none");
-
-            if (valueBgActive) {
-                valueGs.append("rect")
-                    .classed("value-pill", true)
-                    .attr("fill",    valueBgColor)
-                    .attr("opacity", valueBgOpacity);
-            }
 
             valueGs.append("text")
                 .attr("x", d => {
@@ -1213,13 +1202,14 @@ export class Visual implements IVisual {
                     const textEl = grp.select<SVGTextElement>("text").node();
                     if (!textEl) return;
                     const bb = textEl.getBBox();
-                    grp.select<SVGRectElement>("rect.value-pill")
-                        .attr("x",      bb.x - PILL_PAD_H)
-                        .attr("y",      bb.y - PILL_PAD_V)
-                        .attr("width",  bb.width  + PILL_PAD_H * 2)
-                        .attr("height", bb.height + PILL_PAD_V * 2)
-                        .attr("rx",    (bb.height + PILL_PAD_V * 2) / 2)
-                        .attr("ry",    (bb.height + PILL_PAD_V * 2) / 2);
+                    select(this).insert("path", "text")
+                        .classed("value-pill", true)
+                        .attr("d",              `M${bb.x},${bb.y + bb.height / 2} H${bb.x + bb.width}`)
+                        .attr("fill",           "none")
+                        .attr("stroke",         valueBgColor)
+                        .attr("stroke-opacity", valueBgOpacity)
+                        .attr("stroke-width",   bb.height + PILL_PAD_V * 2)
+                        .attr("stroke-linecap", "round");
                 });
             }
         }
@@ -1233,13 +1223,6 @@ export class Visual implements IVisual {
                 .selectAll<SVGGElement, LayoutLink>("g")
                 .data(graph.links)
                 .join("g");
-
-            if (valueBgActive) {
-                ribbonValueGs.append("rect")
-                    .classed("value-pill", true)
-                    .attr("fill",    valueBgColor)
-                    .attr("opacity", valueBgOpacity);
-            }
 
             // Position the label along the ribbon span according to alignment
             ribbonValueGs.append("text")
@@ -1267,13 +1250,14 @@ export class Visual implements IVisual {
                     const textEl = grp.select<SVGTextElement>("text").node();
                     if (!textEl) return;
                     const bb = textEl.getBBox();
-                    grp.select<SVGRectElement>("rect.value-pill")
-                        .attr("x",      bb.x - PILL_PAD_H)
-                        .attr("y",      bb.y - PILL_PAD_V)
-                        .attr("width",  bb.width  + PILL_PAD_H * 2)
-                        .attr("height", bb.height + PILL_PAD_V * 2)
-                        .attr("rx",    (bb.height + PILL_PAD_V * 2) / 2)
-                        .attr("ry",    (bb.height + PILL_PAD_V * 2) / 2);
+                    select(this).insert("path", "text")
+                        .classed("value-pill", true)
+                        .attr("d",              `M${bb.x},${bb.y + bb.height / 2} H${bb.x + bb.width}`)
+                        .attr("fill",           "none")
+                        .attr("stroke",         valueBgColor)
+                        .attr("stroke-opacity", valueBgOpacity)
+                        .attr("stroke-width",   bb.height + PILL_PAD_V * 2)
+                        .attr("stroke-linecap", "round");
                 });
             }
         }
