@@ -12,6 +12,92 @@ The `.pbiviz` file for each release is attached to the corresponding [GitHub Rel
 
 ---
 
+## [1.2.25-beta.1] — 2026-03-07
+
+### Fixed
+- **Pill text centering** — the v1.2.24 bezier set its control-point y equal to
+  `link.y0` (outgoing) or `link.y1` (incoming), which produced a diagonal tangent
+  at the node endpoint. Round pill caps extended outward at that angle, shrinking
+  the visible horizontal padding and making the label appear to touch the bubble's
+  edge. The adjacent control point is now set to `nodeMidY` so the bezier has a
+  horizontal tangent at the node end; round caps stay horizontal and the text sits
+  with equal left/right padding.
+
+### Changed
+- **Smart curving threshold** — when *Follow Flow Path* is on, labels now only
+  follow the bezier arc when the ribbon's centre is far enough from the node
+  midpoint to make a flat label look disconnected (threshold: ribbon half-thickness
+  + half font-size). Labels within that range render flat — no unnecessary
+  curvature. Flat-fallback nodes still receive a pill background if that option is
+  active.
+
+---
+
+## [1.2.24-beta.1] — 2026-03-07
+
+### Fixed
+- **Follow Flow Path — label vertical alignment** — curved labels were anchored
+  to `link.y0` / `link.y1` (the ribbon's midpoint at the node edge), which could
+  be anywhere within the node's height span. Labels now always appear at the node's
+  vertical midpoint, matching flat mode. Each node gets its own per-node `<defs>`
+  path whose start (outgoing) or end (incoming) is pinned to `nodeMidY`; the bezier
+  control points remain at the ribbon's natural y-coordinates so the curve still
+  flows toward the ribbon's far end.
+
+---
+
+## [1.2.23-beta.1] — 2026-03-07
+
+### Changed
+- **Pill background rendering** — all label background pills now use the same
+  stroked-path + `stroke-linecap="round"` technique, giving flat and curved modes
+  identical smooth capsule edges.
+  - *Curved pills*: removed the `PILL_PAD_H` addition from the pill width
+    calculation. Round end-caps now provide all horizontal visual padding,
+    eliminating the excess blank space that previously appeared at each end of the
+    bubble.
+  - *Flat pills* (node labels, node values, ribbon values): replaced the `<rect>`
+    rounded-rectangle approach with a stroked path matching the curved pill
+    technique.
+
+---
+
+## [1.2.22-beta.1] — 2026-03-07
+
+### Changed
+- **Format pane terminology** — standardised all user-facing strings to use
+  "flows" (the industry-standard Sankey term) consistently:
+  - "Links" card → **Flows**; "Link Opacity" → **Flow Opacity**
+  - "Follow Link Path" toggle → **Follow Flow Path**
+  - "Ribbons" option in Show On dropdown → **Flows** (internal value unchanged)
+  - "Values" card → **Data Labels**; "Show Values" → **Show Data Labels**
+- **Labels card control order** — reordered to match Power BI conventions:
+  Position → Follow Flow Path → Font → Font Color → Background →
+  Background Color → Transparency.
+
+### Removed
+- **Grand Total card** — removed entirely. Will be replaced with a more useful
+  variant in a future release.
+
+---
+
+## [1.2.21-beta.1] — 2026-03-06
+
+### Added
+- **Follow Flow Path** (Labels card) — node labels can now curve to follow the
+  arc of the node's primary ribbon (largest outgoing flow for left-side nodes;
+  largest incoming flow for right-side nodes) rather than staying horizontal.
+  The pill background curves with the label, rendered as a partial rounded stroke
+  along the same bezier path via SVG `stroke-dasharray`.
+
+### Fixed
+- **Follow Flow Path — label side consistency** — when Follow Flow Path was
+  enabled, labels for middle-column nodes incorrectly switched which side of the
+  node they appeared on relative to flat mode. Label side (and text anchor) is now
+  determined by left-half vs. right-half position, matching the flat-mode logic.
+
+---
+
 ## [1.2.20-beta.1] — 2026-03-06
 
 ### Added
