@@ -58,6 +58,14 @@
         "colorBySource": {
           "displayName": "Color by Source",
           "type": { "bool": true }
+        },
+        "colorSourceLevel": {
+          "displayName": "Color Source Column",
+          "type": {
+            "enumeration": [
+              { "displayName": "First Column", "value": "__default__" }
+            ]
+          }
         }
       }
     },

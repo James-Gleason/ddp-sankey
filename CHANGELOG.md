@@ -12,6 +12,22 @@ The `.pbiviz` file for each release is attached to the corresponding [GitHub Rel
 
 ---
 
+## [1.2.29-beta.1] — 2026-03-09
+
+### Added
+- **Color Source Column** (Flows card) — new dropdown that controls which column's
+  nodes drive ribbon colors when *Color by Source* is enabled.  The dropdown is
+  populated dynamically with the actual field names from the Path Levels data well
+  (e.g. "Region", "Product Category") so the user can pick by name rather than
+  by index.  Selecting the first column reproduces the existing behaviour exactly.
+  - Links at and downstream of the selected column are fully banded by the chosen
+    source node, using the same forward-propagation algorithm as before.
+  - Links directly feeding into the selected column (one step upstream) are rendered
+    as solid single-color ribbons colored by the destination column node.
+  - Links further upstream fall back to the default immediate-source coloring.
+
+---
+
 ## [1.2.28-beta.1] — 2026-03-09
 
 ### Added

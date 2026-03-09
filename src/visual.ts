@@ -311,6 +311,10 @@ export class Visual implements IVisual {
     // Most-recent fit-to-viewport transform — updated on every render and used
     // as the initial zoom state and the double-click reset target.
     private fitTransform: ZoomTransform = zoomIdentity;
+    // Column display names from the Path Levels field well, in left-to-right
+    // order.  Populated on every update() and used by getFormattingModel() to
+    // inject dynamic items into the Color Source Column dropdown.
+    private pathColumnNames: string[] = [];
 
     constructor(options: VisualConstructorOptions) {
         this.host = options.host;
@@ -440,6 +444,15 @@ export class Visual implements IVisual {
             this.showError(width, height, "Add at least 2 Path Level columns and a Value.");
             return;
         }
+
+        // Store column names for the Color Source Column dropdown
+        this.pathColumnNames = levelCats.map(c => c.source.displayName);
+
+        // Resolve which column index to use as the color source (used later in
+        // the colorBySource sub-ribbon block; 0 = leftmost = original behaviour).
+        const colorSrcColName = String(linkSettings.colorSourceLevel.value?.value ?? "");
+        const colorSrcIdx     = this.pathColumnNames.indexOf(colorSrcColName);
+        const sourceDepth     = colorSrcIdx >= 0 ? colorSrcIdx : 0;
 
         // Identify the value series by data role
         let valueSeries: powerbi.DataViewValueColumn | undefined;
@@ -754,18 +767,21 @@ export class Visual implements IVisual {
         };
 
         // ── Source contribution propagation ────────────────────────────────────
-        // nodeContrib: node.name → Map<depth0NodeName, fraction>
-        // Propagated in topological order so each downstream node inherits the
-        // weighted mix of depth-0 sources that flow into it.
-        const nodeContrib = new Map<string, Map<string, number>>();
-        const depth0Lbl   = new Map<string, string>();   // depth-0 node.name → label
+        // nodeContrib: node.name → Map<colorSrcNodeName, fraction>
+        // Seeded at depth `sourceDepth` (default 0 = leftmost column) and
+        // propagated forward so each downstream node inherits the weighted mix
+        // of color-source nodes that flow into it.
+        // Nodes shallower than sourceDepth have no entry (rendered as plain
+        // single-color ribbons using the immediate-source fallback).
+        const nodeContrib  = new Map<string, Map<string, number>>();
+        const colorSrcLbl  = new Map<string, string>();   // colorSrc node.name → label
 
         for (const nd of ([...graph.nodes as LayoutNode[]]
                           .sort((a, b) => (a.depth ?? 0) - (b.depth ?? 0)))) {
-            if ((nd.depth ?? 0) === 0) {
+            if ((nd.depth ?? 0) === sourceDepth) {
                 nodeContrib.set(nd.name, new Map([[nd.name, 1.0]]));
-                depth0Lbl.set(nd.name, nd.label);
-            } else {
+                colorSrcLbl.set(nd.name, nd.label);
+            } else if ((nd.depth ?? 0) > sourceDepth) {
                 const m    = new Map<string, number>();
                 const totV = nd.value ?? 0;
                 if (totV > 0) {
@@ -779,12 +795,13 @@ export class Visual implements IVisual {
                 }
                 nodeContrib.set(nd.name, m);
             }
+            // depth < sourceDepth: no entry — handled as simple ribbons below
         }
 
-        // Canonical stacking order: depth-0 nodes sorted top-to-bottom by y0.
-        const depth0Order = new Map<string, number>(
+        // Canonical stacking order: color-source nodes sorted top-to-bottom.
+        const colorSrcOrder = new Map<string, number>(
             ([...graph.nodes as LayoutNode[]]
-                .filter(n => (n.depth ?? 0) === 0)
+                .filter(n => (n.depth ?? 0) === sourceDepth)
                 .sort((a, b) => (a.y0 ?? 0) - (b.y0 ?? 0))
                 .map((n, i) => [n.name, i] as [string, number]))
         );
@@ -827,10 +844,14 @@ export class Visual implements IVisual {
 
             for (const nd of ([...graph.nodes as LayoutNode[]]
                               .sort((a, b) => (a.depth ?? 0) - (b.depth ?? 0)))) {
+                // Nodes shallower than the color-source depth have no contribution
+                // entries and are rendered as simple single-color ribbons separately.
+                if ((nd.depth ?? 0) < sourceDepth) continue;
+
                 const srcLinks = (nd.sourceLinks ?? []) as LayoutLink[];
                 const tgtLinks = (nd.targetLinks ?? []) as LayoutLink[];
                 const ndSrcs   = [...(nodeContrib.get(nd.name) ?? new Map<string, number>()).entries()]
-                    .sort((a, b) => (depth0Order.get(a[0]) ?? 0) - (depth0Order.get(b[0]) ?? 0));
+                    .sort((a, b) => (colorSrcOrder.get(a[0]) ?? 0) - (colorSrcOrder.get(b[0]) ?? 0));
 
                 // ── Left side first: derive draw-width fractions ───────────────
                 // Incoming band heights use the actual linkDrawW_tgt values and
@@ -910,12 +931,33 @@ export class Visual implements IVisual {
             // with a tiny value contribution but an inflated draw width still
             // gets a correctly-sized ribbon rather than being silently dropped.
             for (const lnk of graph.links as LayoutLink[]) {
-                const srcNd     = lnk.source as LayoutNode;
-                const tgtNd     = lnk.target as LayoutNode;
-                const key       = `${srcNd.name}\x00${tgtNd.name}`;
+                const srcNd = lnk.source as LayoutNode;
+                const tgtNd = lnk.target as LayoutNode;
+                const key   = `${srcNd.name}\x00${tgtNd.name}`;
+
+                if ((srcNd.depth ?? 0) < sourceDepth) {
+                    // ── Pre / boundary links ───────────────────────────────────
+                    // Links whose source is shallower than the color-source depth
+                    // are not split into sub-ribbons.  Boundary links (srcDepth
+                    // = sourceDepth − 1) are colored by the depth-N destination
+                    // node they connect to; links further upstream fall back to
+                    // the default immediate-source color (srcLabel = "").
+                    const srcW = linkDrawW.get(key)     ?? Math.max(minRibbonHeight, lnk.width ?? 1) * fitK;
+                    const tgtW = linkDrawW_tgt.get(key) ?? srcW;
+                    const label = (srcNd.depth ?? 0) === sourceDepth - 1
+                        ? (colorSrcLbl.get(tgtNd.name) ?? "")
+                        : "";
+                    subRibbons.push({
+                        link: lnk, srcLabel: label,
+                        srcX1: srcNd.x1 ?? 0, srcYtop: (lnk.y0 ?? 0) - srcW / 2, srcYbot: (lnk.y0 ?? 0) + srcW / 2,
+                        tgtX0: tgtNd.x0 ?? 0, tgtYtop: (lnk.y1 ?? 0) - tgtW / 2, tgtYbot: (lnk.y1 ?? 0) + tgtW / 2,
+                    });
+                    continue;
+                }
+
                 const drawFracs = nodeDrawFrac.get(srcNd.name);
                 const srcs      = [...(nodeContrib.get(srcNd.name) ?? new Map<string, number>()).entries()]
-                    .sort((a, b) => (depth0Order.get(a[0]) ?? 0) - (depth0Order.get(b[0]) ?? 0));
+                    .sort((a, b) => (colorSrcOrder.get(a[0]) ?? 0) - (colorSrcOrder.get(b[0]) ?? 0));
                 for (const [s, valueFrac] of srcs) {
                     const drawF = drawFracs?.get(s) ?? valueFrac;
                     if (drawF < 0.0001) continue;
@@ -923,7 +965,7 @@ export class Visual implements IVisual {
                     const tp = tgtPos.get(`${key}\x00${s}`);
                     if (!sp || !tp) continue;
                     subRibbons.push({
-                        link: lnk, srcLabel: depth0Lbl.get(s) ?? srcNd.label,
+                        link: lnk, srcLabel: colorSrcLbl.get(s) ?? srcNd.label,
                         srcX1: srcNd.x1 ?? 0, srcYtop: sp.top, srcYbot: sp.bot,
                         tgtX0: tgtNd.x0 ?? 0, tgtYtop: tp.top, tgtYbot: tp.bot,
                     });
@@ -940,7 +982,7 @@ export class Visual implements IVisual {
             return downstreamSet.has(src) ? linkOpacity : linkOpacity * 0.15;
         };
 
-        // Ribbon color: depth-0 source label (colorBySource) or immediate source label.
+        // Ribbon color: color-source column label (colorBySource) or immediate source label.
         const ribbonColor = (d: SubRibbon): string =>
             color(d.srcLabel || (d.link.source as LayoutNode).label);
 
@@ -1371,6 +1413,20 @@ export class Visual implements IVisual {
     // ── Format pane ───────────────────────────────────────────────────────────
 
     public getFormattingModel(): powerbi.visuals.FormattingModel {
+        // Inject dynamic column names into the Color Source Column dropdown so
+        // the user sees actual field names (e.g. "Region", "Category") rather
+        // than a static placeholder.
+        if (this.pathColumnNames.length > 0) {
+            const items = this.pathColumnNames.map(name => ({ displayName: name, value: name }));
+            this.formattingSettings.linkSettings.colorSourceLevel.items = items;
+            // If the stored value no longer matches any current column name
+            // (e.g. after a data refresh that removed a column), reset to the
+            // first column so the visual stays in a valid state.
+            const cur = this.formattingSettings.linkSettings.colorSourceLevel.value?.value;
+            if (!items.find(i => i.value === cur)) {
+                this.formattingSettings.linkSettings.colorSourceLevel.value = items[0];
+            }
+        }
         return this.formattingSettingsService.buildFormattingModel(this.formattingSettings);
     }
 

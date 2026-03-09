@@ -49,11 +49,19 @@ class LinkSettingsCard extends formattingSettings.SimpleCard {
     public colorBySource = new formattingSettings.ToggleSwitch({
         name: "colorBySource",
         displayName: "Color by Source",
-        description: "Color each ribbon by the first-column node it originates from, making flows visually traceable from left to right across all columns",
+        description: "Color each ribbon by a selected column's node, making flows visually traceable across all columns",
         value: false
     });
 
-    public slices = [this.linkOpacity, this.colorBySource];
+    public colorSourceLevel = new formattingSettings.ItemDropdown({
+        name: "colorSourceLevel",
+        displayName: "Color Source Column",
+        description: "Which column's nodes drive ribbon colors — only active when Color by Source is on",
+        items: [{ displayName: "First Column", value: "__default__" }],
+        value: { displayName: "First Column", value: "__default__" }
+    });
+
+    public slices = [this.linkOpacity, this.colorBySource, this.colorSourceLevel];
 }
 
 // ─── Labels card ──────────────────────────────────────────────────────────────

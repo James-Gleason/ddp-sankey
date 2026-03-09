@@ -35,7 +35,8 @@ Drag two or more columns into **Path Levels** and a numeric measure into **Value
 
 ### Flows
 - **Flow Opacity** — flow transparency, 0–100 % (default 45 %)
-- **Color by Source** — toggle to color all flows by their originating (leftmost) node
+- **Color by Source** — toggle to color all flows by a selected column's nodes, making flows visually traceable across all stages
+- **Color Source Column** — dropdown (only active when Color by Source is on) populated with the actual field names from the Path Levels well; pick any column to use as the color anchor
 
 ### Labels
 - **Show Labels** — toggle node name labels on/off
@@ -79,7 +80,7 @@ Node.js is required. npm is not in the default shell PATH on the build machine, 
 powershell.exe -ExecutionPolicy Bypass -File "build.ps1"
 ```
 
-Output: `dist\DDP_Sankey_1.2.28.0.pbiviz` (filename always matches the current version)
+Output: `dist\DDP_Sankey_1.2.29.0.pbiviz` (filename always matches the current version)
 
 Install the `.pbiviz` in Power BI Desktop via **Home → Import a visual from a file**.
 
