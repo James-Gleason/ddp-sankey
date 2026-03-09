@@ -380,6 +380,37 @@ export class Visual implements IVisual {
         this.formattingSettings = this.formattingSettingsService
             .populateFormattingSettingsModel(VisualFormattingSettingsModel, options.dataViews[0]);
 
+        // Fix up the Color Source Column dropdown immediately after population.
+        // populateFormattingSettingsModel creates a fresh class instance whose
+        // colorSourceLevel.items contains only the static placeholder
+        // ("__default__"), so it cannot match a stored column name like "Region"
+        // and silently reverts to the placeholder.  We rebuild the items list
+        // from the raw categorical metadata and re-read the stored string value
+        // directly from dataView.metadata.objects so the correct column is set.
+        {
+            const rawCats = options.dataViews[0]?.categorical?.categories;
+            if (rawCats && rawCats.length >= 2) {
+                const dynItems = (rawCats as powerbi.DataViewCategoryColumn[]).map(c => ({
+                    displayName: String(c.source.displayName),
+                    value:       String(c.source.displayName)
+                }));
+                this.formattingSettings.linkSettings.colorSourceLevel.items = dynItems;
+
+                // Raw stored value is the enum string written by persistProperties.
+                // Handle both plain-string and {value: string} shapes defensively.
+                const rawProp = (options.dataViews[0]?.metadata?.objects?.['linkSettings'] as powerbi.DataViewObject | undefined)
+                    ?.['colorSourceLevel'];
+                const rawStored = typeof rawProp === 'string'
+                    ? rawProp
+                    : (rawProp != null && typeof (rawProp as {value?: unknown}).value === 'string'
+                        ? (rawProp as {value: string}).value
+                        : '');
+
+                this.formattingSettings.linkSettings.colorSourceLevel.value =
+                    dynItems.find(i => i.value === rawStored) ?? dynItems[0];
+            }
+        }
+
         const {
             nodeSettings, linkSettings, labelSettings, valueSettings
         } = this.formattingSettings;
