@@ -12,6 +12,24 @@ The `.pbiviz` file for each release is attached to the corresponding [GitHub Rel
 
 ---
 
+## [1.2.28-beta.1] — 2026-03-09
+
+### Added
+- **Display Units** (Data Labels card) — new dropdown to scale value labels for
+  readability: `Auto` (picks the best unit from the data), `None`, `Thousands`
+  (K), `Millions` (M), or `Billions` (B).  Auto inspects the largest node total
+  after layout and selects the unit whose divisor best fits that magnitude.
+- **Decimal Places** (Data Labels card) — new spinner (0–10) controlling how many
+  digits appear after the decimal point on all formatted values.  Applies to node
+  labels, ribbon labels, and hover tooltips consistently.
+
+### Changed
+- All value surfaces (node data labels, ribbon data labels, hover tooltips, and
+  the node-width auto-sizing text-measurement pass) now use a shared `fmtVal()`
+  closure so the formatted string is always identical across every element.
+
+---
+
 ## [1.2.27-beta.1] — 2026-03-07
 
 ### Fixed

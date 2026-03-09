@@ -52,6 +52,8 @@ Drag two or more columns into **Path Levels** and a numeric measure into **Value
 - **Show On** — `Nodes` (total per node) or `Flows` (value per flow)
 - **Position** — `Inside`, `Outside`, or `Auto` (auto picks based on node height vs font size)
 - **Alignment** — `Left`, `Center` (default), or `Right` — positions flow value labels near the source node, mid-span, or near the target node
+- **Display Units** — `Auto` (picks the best unit from the data), `None`, `Thousands` (K), `Millions` (M), or `Billions` (B)
+- **Decimal Places** — 0–10 digits after the decimal point (default 0)
 - **Font** — family, size, bold, italic, underline
 - **Font Color**
 - **Background** — toggle pill-shaped background behind each data label
@@ -77,7 +79,7 @@ Node.js is required. npm is not in the default shell PATH on the build machine, 
 powershell.exe -ExecutionPolicy Bypass -File "build.ps1"
 ```
 
-Output: `dist\DDP_Sankey_1.2.27.0.pbiviz` (filename always matches the current version)
+Output: `dist\DDP_Sankey_1.2.28.0.pbiviz` (filename always matches the current version)
 
 Install the `.pbiviz` in Power BI Desktop via **Home → Import a visual from a file**.
 
