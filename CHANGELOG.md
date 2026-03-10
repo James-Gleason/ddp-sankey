@@ -12,6 +12,27 @@ The `.pbiviz` file for each release is attached to the corresponding [GitHub Rel
 
 ---
 
+## [1.2.30-beta.1] — 2026-03-10
+
+### Fixed
+- **Ctrl+click stacking cross-filters** — Ctrl+clicking a Sankey node or flow
+  while another visual (e.g. a pie chart) has already applied a cross-filter now
+  correctly stacks both filters, rather than having no effect.  The click handlers
+  already passed `multiSelect = true` to `selectionManager.select()` for
+  Ctrl/Cmd-clicks, but `capabilities.json` was missing
+  `"supportsMultiVisualSelection": true` — the flag that tells the Power BI host
+  this visual participates in cross-visual stacking selection.  Without it the
+  host silently ignores the multi-select hint.
+- **Color Source Column — value not persisted across renders** — the
+  `colorSourceLevel` dropdown lost its selected value on every render because
+  `populateFormattingSettingsModel` rebuilds the settings class from scratch and
+  the freshly-created `ItemDropdown`'s items list was empty until
+  `getFormattingModel()` ran.  The fix reads the raw persisted value from
+  `dataView.metadata.objects` immediately after population and re-injects it into
+  the dropdown, so the chosen column is honoured on every render.
+
+---
+
 ## [1.2.29-beta.1] — 2026-03-09
 
 ### Added

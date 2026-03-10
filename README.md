@@ -19,7 +19,7 @@ Drag two or more columns into **Path Levels** and a numeric measure into **Value
 | **Theme-aware colours** | Nodes use `host.colorPalette` so they match your report's theme automatically |
 | **Color by Source** | Optionally color every flow by the depth-0 node it originates from, making flows visually traceable across all columns |
 | **Blank value support** | Null / empty cells are shown as a `(Blank)` node rather than being silently dropped; each blank is unique to its parent path |
-| **Cross-filtering** | Click a node or flow to filter other visuals on the page; Ctrl/Cmd-click for multi-select; click the background to clear |
+| **Cross-filtering** | Click a node or flow to filter other visuals on the page; Ctrl/Cmd-click while another visual is already filtered to stack both filters simultaneously; click the background to clear |
 | **Zoom & pan** | Scroll to zoom, drag to pan, double-click to reset |
 | **Field-well ordering** | Top-to-bottom order in the Path Levels field well maps left-to-right in the visual |
 | **Tapered flows** | Each flow end independently matches the allocated height on that node face, tapering smoothly between source and target widths |
@@ -80,7 +80,7 @@ Node.js is required. npm is not in the default shell PATH on the build machine, 
 powershell.exe -ExecutionPolicy Bypass -File "build.ps1"
 ```
 
-Output: `dist\DDP_Sankey_1.2.29.0.pbiviz` (filename always matches the current version)
+Output: `dist\DDP_Sankey_1.2.30.0.pbiviz` (filename always matches the current version)
 
 Install the `.pbiviz` in Power BI Desktop via **Home → Import a visual from a file**.
 

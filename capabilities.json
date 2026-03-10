@@ -220,6 +220,7 @@
   },
   "privileges": [],
   "supportsHighlight": false,
+  "supportsMultiVisualSelection": true,
   "sorting": {
     "default": {}
   }
