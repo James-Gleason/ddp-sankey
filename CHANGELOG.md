@@ -12,6 +12,25 @@ The `.pbiviz` file for each release is attached to the corresponding [GitHub Rel
 
 ---
 
+## [1.2.31-beta.1] — 2026-03-10
+
+### Added
+- **Rendering events** — the visual now calls `host.eventService.renderingStarted`,
+  `renderingFinished`, and `renderingFailed` at the correct lifecycle points.
+  Required for reliable PDF/image export, paginated report embedding, and
+  performance monitoring.  Previously missing, causing Power BI to treat the
+  visual as always "pending" for export purposes.
+- **Minimum Flow Value** (Flows card) — new spinner that excludes flows whose
+  value is below the threshold from the diagram entirely (both the ribbon and
+  its contribution to node sizing).  Defaults to 0 (all flows shown).  Useful
+  for hiding noise on dense charts without having to pre-filter the data model.
+- **Node Sort** (Nodes card) — new dropdown controlling the vertical ordering
+  of nodes within each column: `Default` (d3-sankey natural order), `Value
+  (high → low)`, `Value (low → high)`, or `Alphabetical`.  Sort is applied
+  consistently in both the initial and wide-node layout passes.
+
+---
+
 ## [1.2.30-beta.1] — 2026-03-10
 
 ### Fixed

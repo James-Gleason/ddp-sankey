@@ -45,6 +45,17 @@
         "nodePadding": {
           "displayName": "Node Padding (px)",
           "type": { "numeric": true }
+        },
+        "nodeSort": {
+          "displayName": "Node Sort",
+          "type": {
+            "enumeration": [
+              { "displayName": "Default",            "value": "default"    },
+              { "displayName": "Value (high → low)", "value": "value-desc" },
+              { "displayName": "Value (low → high)", "value": "value-asc"  },
+              { "displayName": "Alphabetical",       "value": "alpha"      }
+            ]
+          }
         }
       }
     },
@@ -53,6 +64,10 @@
       "properties": {
         "linkOpacity": {
           "displayName": "Flow Opacity",
+          "type": { "numeric": true }
+        },
+        "minFlowValue": {
+          "displayName": "Minimum Flow Value",
           "type": { "numeric": true }
         },
         "colorBySource": {

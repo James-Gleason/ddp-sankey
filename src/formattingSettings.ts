@@ -8,6 +8,13 @@ import ValidatorType = powerbi.visuals.ValidatorType;
 
 // ─── Nodes card ───────────────────────────────────────────────────────────────
 
+const nodeSortItems = [
+    { displayName: "Default",            value: "default"    },
+    { displayName: "Value (high → low)", value: "value-desc" },
+    { displayName: "Value (low → high)", value: "value-asc"  },
+    { displayName: "Alphabetical",       value: "alpha"      }
+];
+
 class NodeSettingsCard extends formattingSettings.SimpleCard {
     public name: string = "nodeSettings";
     public displayName: string = "Nodes";
@@ -26,7 +33,15 @@ class NodeSettingsCard extends formattingSettings.SimpleCard {
         value: 12
     });
 
-    public slices = [this.nodeWidth, this.nodePadding];
+    public nodeSort = new formattingSettings.ItemDropdown({
+        name: "nodeSort",
+        displayName: "Node Sort",
+        description: "Vertical ordering of nodes within each column",
+        items: nodeSortItems,
+        value: nodeSortItems[0]   // default: Default (d3 natural order)
+    });
+
+    public slices = [this.nodeWidth, this.nodePadding, this.nodeSort];
 }
 
 // ─── Flows card ───────────────────────────────────────────────────────────────
@@ -46,6 +61,16 @@ class LinkSettingsCard extends formattingSettings.SimpleCard {
         }
     });
 
+    public minFlowValue = new formattingSettings.NumUpDown({
+        name: "minFlowValue",
+        displayName: "Minimum Flow Value",
+        description: "Flows with a value below this threshold are excluded from the diagram — useful for hiding noise on dense charts",
+        value: 0,
+        options: {
+            minValue: { type: ValidatorType.Min, value: 0 }
+        }
+    });
+
     public colorBySource = new formattingSettings.ToggleSwitch({
         name: "colorBySource",
         displayName: "Color by Source",
@@ -61,7 +86,7 @@ class LinkSettingsCard extends formattingSettings.SimpleCard {
         value: { displayName: "First Column", value: "__default__" }
     });
 
-    public slices = [this.linkOpacity, this.colorBySource, this.colorSourceLevel];
+    public slices = [this.linkOpacity, this.minFlowValue, this.colorBySource, this.colorSourceLevel];
 }
 
 // ─── Labels card ──────────────────────────────────────────────────────────────

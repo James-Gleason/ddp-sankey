@@ -32,9 +32,11 @@ Drag two or more columns into **Path Levels** and a numeric measure into **Value
 ### Nodes
 - **Node Width (px)** — width of each node rectangle (default 20)
 - **Node Padding (px)** — vertical gap between nodes in the same column (default 12)
+- **Node Sort** — vertical ordering within each column: `Default` (d3 natural order), `Value (high → low)`, `Value (low → high)`, or `Alphabetical`
 
 ### Flows
 - **Flow Opacity** — flow transparency, 0–100 % (default 45 %)
+- **Minimum Flow Value** — flows below this value are excluded from the diagram entirely (default 0 = show all)
 - **Color by Source** — toggle to color all flows by a selected column's nodes, making flows visually traceable across all stages
 - **Color Source Column** — dropdown (only active when Color by Source is on) populated with the actual field names from the Path Levels well; pick any column to use as the color anchor
 
@@ -80,7 +82,7 @@ Node.js is required. npm is not in the default shell PATH on the build machine, 
 powershell.exe -ExecutionPolicy Bypass -File "build.ps1"
 ```
 
-Output: `dist\DDP_Sankey_1.2.30.0.pbiviz` (filename always matches the current version)
+Output: `dist\DDP_Sankey_1.2.31.0.pbiviz` (filename always matches the current version)
 
 Install the `.pbiviz` in Power BI Desktop via **Home → Import a visual from a file**.
 

@@ -369,6 +369,19 @@ export class Visual implements IVisual {
     }
 
     public update(options: VisualUpdateOptions): void {
+        this.host.eventService.renderingStarted(options);
+        let renderFailed = false;
+        try {
+        this._update(options);
+        } catch (e) {
+            renderFailed = true;
+            this.host.eventService.renderingFailed(options, String(e));
+        } finally {
+            if (!renderFailed) this.host.eventService.renderingFinished(options);
+        }
+    }
+
+    private _update(options: VisualUpdateOptions): void {
         const width  = options.viewport.width;
         const height = options.viewport.height;
 
@@ -417,7 +430,15 @@ export class Visual implements IVisual {
 
         const nodeWidth   = Math.max(4, nodeSettings.nodeWidth.value);
         const nodePadding = Math.max(2, nodeSettings.nodePadding.value);
+        const nodeSortStr = String(nodeSettings.nodeSort.value?.value ?? "default");
+        const nodeSortFn: ((a: LayoutNode, b: LayoutNode) => number) | undefined =
+            nodeSortStr === "value-desc" ? (a, b) => (b.value ?? 0) - (a.value ?? 0) :
+            nodeSortStr === "value-asc"  ? (a, b) => (a.value ?? 0) - (b.value ?? 0) :
+            nodeSortStr === "alpha"      ? (a, b) => a.label.localeCompare(b.label)   :
+            undefined;
+
         const linkOpacity    = Math.min(1, Math.max(0, linkSettings.linkOpacity.value / 100));
+        const minFlowValue   = Math.max(0, linkSettings.minFlowValue.value ?? 0);
         const colorBySource  = linkSettings.colorBySource.value;
 
         const showLabels  = labelSettings.show.value;
@@ -506,7 +527,7 @@ export class Visual implements IVisual {
 
         for (let r = 0; r < rowCount; r++) {
             const val = Number(valueSeries.values[r]) || 0;
-            if (val <= 0) continue;
+            if (val <= 0 || val < minFlowValue) continue;
 
             // Build a selection ID that identifies this unique row combination
             let idBuilder = this.host.createSelectionIdBuilder();
@@ -628,17 +649,24 @@ export class Visual implements IVisual {
 
         this.container.attr("transform", `translate(${margin.left},${margin.top})`);
 
+        // Reusable sankey factory — applies node sort and padding consistently in both passes.
+        const makeSankeyLayout = (nw: number) => {
+            const sk = sankey<NodeDatum, LinkDatum>()
+                .nodeWidth(nw)
+                .nodePadding(nodePadding)
+                .extent([[0, 0], [innerW, innerH]]);
+            if (nodeSortFn) sk.nodeSort(nodeSortFn);
+            return sk;
+        };
+
         // Pass 1: run d3-sankey with the user's nodeWidth to obtain node values.
         // We need node.value for text measurement before we can set the final width.
         let graph: LayoutGraph;
         try {
-            graph = sankey<NodeDatum, LinkDatum>()
-                .nodeWidth(nodeWidth)
-                .nodePadding(nodePadding)
-                .extent([[0, 0], [innerW, innerH]])({
-                    nodes: nodes.map(d => ({ ...d })),
-                    links: links.map(d => ({ ...d }))
-                });
+            graph = makeSankeyLayout(nodeWidth)({
+                nodes: nodes.map(d => ({ ...d })),
+                links: links.map(d => ({ ...d }))
+            });
         } catch (e) {
             this.showError(width, height, "Could not compute layout. Check for circular references.");
             return;
@@ -675,13 +703,10 @@ export class Visual implements IVisual {
         // Pass 2: re-run layout with the wider node if text measurement required it.
         if (effectiveNodeWidth > nodeWidth) {
             try {
-                graph = sankey<NodeDatum, LinkDatum>()
-                    .nodeWidth(effectiveNodeWidth)
-                    .nodePadding(nodePadding)
-                    .extent([[0, 0], [innerW, innerH]])({
-                        nodes: nodes.map(d => ({ ...d })),
-                        links: links.map(d => ({ ...d }))
-                    });
+                graph = makeSankeyLayout(effectiveNodeWidth)({
+                    nodes: nodes.map(d => ({ ...d })),
+                    links: links.map(d => ({ ...d }))
+                });
             } catch (e) {
                 this.showError(width, height, "Could not compute layout. Check for circular references.");
                 return;
