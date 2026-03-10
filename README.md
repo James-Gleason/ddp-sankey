@@ -24,6 +24,9 @@ Drag two or more columns into **Path Levels** and a numeric measure into **Value
 | **Field-well ordering** | Top-to-bottom order in the Path Levels field well maps left-to-right in the visual |
 | **Tapered flows** | Each flow end independently matches the allocated height on that node face, tapering smoothly between source and target widths |
 | **Follow Flow Path labels** | Node labels can curve to follow the arc of their primary flow rather than staying horizontal |
+| **Context menu** | Right-click any node, flow, or the empty canvas to open the Power BI context menu (drill-through, spotlight, etc.) |
+| **Highlight Direction** | Choose Downstream, Upstream, or Both when selecting nodes/flows |
+| **% of Total labels** | Data labels can show raw value, percentage of grand total, or both |
 
 ---
 
@@ -33,6 +36,7 @@ Drag two or more columns into **Path Levels** and a numeric measure into **Value
 - **Node Width (px)** — width of each node rectangle (default 20)
 - **Node Padding (px)** — vertical gap between nodes in the same column (default 12)
 - **Node Sort** — vertical ordering within each column: `Default` (d3 natural order), `Value (high → low)`, `Value (low → high)`, or `Alphabetical`
+- **Highlight Direction** — which direction to emphasise on selection: `Downstream` (default), `Upstream`, or `Both`
 
 ### Flows
 - **Flow Opacity** — flow transparency, 0–100 % (default 45 %)
@@ -53,6 +57,7 @@ Drag two or more columns into **Path Levels** and a numeric measure into **Value
 ### Data Labels
 - **Show Data Labels** — toggle value labels on/off
 - **Show On** — `Nodes` (total per node) or `Flows` (value per flow)
+- **Format** — `Value` (default), `% of Total` (as a percentage of the grand total), or `Value and %` (e.g. `1.2K (34.5%)`)
 - **Position** — `Inside`, `Outside`, or `Auto` (auto picks based on node height vs font size)
 - **Alignment** — `Left`, `Center` (default), or `Right` — positions flow value labels near the source node, mid-span, or near the target node
 - **Display Units** — `Auto` (picks the best unit from the data), `None`, `Thousands` (K), `Millions` (M), or `Billions` (B)
@@ -82,7 +87,7 @@ Node.js is required. npm is not in the default shell PATH on the build machine, 
 powershell.exe -ExecutionPolicy Bypass -File "build.ps1"
 ```
 
-Output: `dist\DDP_Sankey_1.2.31.0.pbiviz` (filename always matches the current version)
+Output: `dist\DDP_Sankey_1.2.32.0.pbiviz` (filename always matches the current version)
 
 Install the `.pbiviz` in Power BI Desktop via **Home → Import a visual from a file**.
 

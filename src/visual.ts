@@ -366,6 +366,15 @@ export class Visual implements IVisual {
             this.container.selectAll<SVGPathElement, LayoutLink>(".links path")
                 .attr("opacity", this.currentLinkOpacity);
         });
+
+        // Context menu on empty canvas
+        this.svg.on("contextmenu", (event: MouseEvent) => {
+            event.preventDefault();
+            this.selectionManager.showContextMenu(
+                {} as powerbi.extensibility.ISelectionId,
+                { x: event.clientX, y: event.clientY }
+            );
+        });
     }
 
     public update(options: VisualUpdateOptions): void {
@@ -430,7 +439,8 @@ export class Visual implements IVisual {
 
         const nodeWidth   = Math.max(4, nodeSettings.nodeWidth.value);
         const nodePadding = Math.max(2, nodeSettings.nodePadding.value);
-        const nodeSortStr = String(nodeSettings.nodeSort.value?.value ?? "default");
+        const nodeSortStr    = String(nodeSettings.nodeSort.value?.value    ?? "default");
+        const highlightDirStr = String(nodeSettings.highlightDir.value?.value ?? "downstream");
         const nodeSortFn: ((a: LayoutNode, b: LayoutNode) => number) | undefined =
             nodeSortStr === "value-desc" ? (a, b) => (b.value ?? 0) - (a.value ?? 0) :
             nodeSortStr === "value-asc"  ? (a, b) => (a.value ?? 0) - (b.value ?? 0) :
@@ -456,6 +466,7 @@ export class Visual implements IVisual {
         const valuePos        = String(valueSettings.position.value?.value    ?? "auto");
         const valueTarget     = String(valueSettings.target.value?.value      ?? "nodes");
         const valueAlign      = String(valueSettings.alignment.value?.value   ?? "center");
+        const labelFormatStr  = String(valueSettings.labelFormat.value?.value ?? "value");
         const vDisplayUnits   = String(valueSettings.displayUnits.value?.value ?? "auto");
         const vDecimalPlaces  = Math.max(0, Math.min(10, valueSettings.decimalPlaces.value ?? 0));
         const vFontFamily     = valueSettings.fontControl.fontFamily.value;
@@ -674,9 +685,26 @@ export class Visual implements IVisual {
 
         // ── Value formatter ───────────────────────────────────────────────────
         // Resolve "auto" unit once using the full set of node values, then build
-        // a convenience wrapper used everywhere a data value is rendered.
+        // convenience wrappers used everywhere a data value is rendered.
         const resolvedUnit = resolveDisplayUnit(vDisplayUnits, graph.nodes.map(n => n.value ?? 0));
         const fmtVal = (v: number) => formatDataValue(v, resolvedUnit, vDecimalPlaces);
+
+        // Grand total = sum of all depth-0 (leftmost column) node values.
+        // Used for percentage calculations in data labels.
+        const totalValue = (graph.nodes as LayoutNode[])
+            .filter(n => (n.depth ?? 0) === 0)
+            .reduce((s, n) => s + (n.value ?? 0), 0);
+
+        const fmtPct = (v: number): string => {
+            const pct = totalValue > 0 ? v / totalValue * 100 : 0;
+            return `${pct.toLocaleString(undefined, { minimumFractionDigits: vDecimalPlaces, maximumFractionDigits: vDecimalPlaces })}%`;
+        };
+
+        const fmtLabel = (v: number): string => {
+            if (labelFormatStr === "percent") return fmtPct(v);
+            if (labelFormatStr === "both")    return `${fmtVal(v)} (${fmtPct(v)})`;
+            return fmtVal(v);
+        };
 
         // ── Effective node width (minimum to hold value label text) ───────────
         // When value labels are positioned inside a node, the node must be at
@@ -688,7 +716,7 @@ export class Visual implements IVisual {
             // When a pill background is active, node must also accommodate horizontal pill padding
             const nodePad  = valueBgActive ? PILL_PAD_H * 2 : 8; // pill: 8 px each side; plain: 4 px
             for (const nd of graph.nodes) {
-                const tw = measureText(fmtVal(nd.value ?? 0), font);
+                const tw = measureText(fmtLabel(nd.value ?? 0), font);
                 if (tw + nodePad > effectiveNodeWidth) effectiveNodeWidth = tw + nodePad;
             }
             // Cap expansion so ribbons stay at least 40 px wide regardless of font size.
@@ -768,58 +796,94 @@ export class Visual implements IVisual {
         // Use report theme colours keyed by display label so the same name gets the same colour
         const color = (label: string): string => this.host.colorPalette.getColor(label).value;
 
-        // ── Downstream selection helpers ───────────────────────────────────────
+        // ── Selection highlight helpers ────────────────────────────────────────
         //
-        // When a node is clicked: emphasise the node + every node/ribbon reachable
-        //   by following links forward (downstream).
-        // When a ribbon is clicked: emphasise the ribbon's source node, the ribbon
-        //   itself, and every node/ribbon downstream of the ribbon's target node.
-        // Everything else de-emphasises to 15 % opacity.
+        // When a node or ribbon is clicked, nodes/ribbons in the highlighted
+        // direction are shown at full opacity; everything else dims to 15%.
         //
-        // downstreamSet  – names of all nodes in the highlighted downstream path
-        // linkSourceNode – for a ribbon click, the source node (upstream of BFS start
-        //   but still highlighted)
+        // highlightDirStr controls direction: "downstream", "upstream", or "both".
+        // highlightSet    – names of all highlighted nodes.
+        // linkAnchorNode  – for a ribbon click, the node on the non-BFS end
+        //   (e.g. source for downstream, target for upstream) kept at full opacity.
 
-        let downstreamSet  = new Set<string>();
-        let linkSourceNode = "";
+        let highlightSet   = new Set<string>();
+        let linkAnchorNode = "";
 
-        const refreshDownstream = (): void => {
-            downstreamSet  = new Set<string>();
-            linkSourceNode = "";
-            if (this.selectionType === "none") return;
-
-            let startName: string;
-            if (this.selectionType === "node") {
-                startName = this.selectedKey;
-            } else {
-                // Link: BFS from the target; remember the source separately
-                const parts    = this.selectedKey.split("\x00");
-                linkSourceNode = parts[0];
-                startName      = parts[1];
-            }
-
-            // BFS forward through sourceLinks to collect all downstream nodes
+        // BFS helpers — defined here so they close over `graph`
+        const bfsForward = (startName: string): Set<string> => {
+            const result = new Set<string>();
             const queue: LayoutNode[] = [];
-            const start = graph.nodes.find(n => n.name === startName);
-            if (start) queue.push(start);
+            const startNd = (graph.nodes as LayoutNode[]).find(x => x.name === startName);
+            if (startNd) queue.push(startNd);
             while (queue.length > 0) {
                 const n = queue.shift()!;
-                if (downstreamSet.has(n.name)) continue;
-                downstreamSet.add(n.name);
-                for (const lnk of (n.sourceLinks ?? [])) {
+                if (result.has(n.name)) continue;
+                result.add(n.name);
+                for (const lnk of (n.sourceLinks ?? []) as LayoutLink[]) {
                     queue.push(lnk.target as LayoutNode);
+                }
+            }
+            return result;
+        };
+
+        const bfsBackward = (startName: string): Set<string> => {
+            const result = new Set<string>();
+            const queue: LayoutNode[] = [];
+            const startNd = (graph.nodes as LayoutNode[]).find(x => x.name === startName);
+            if (startNd) queue.push(startNd);
+            while (queue.length > 0) {
+                const n = queue.shift()!;
+                if (result.has(n.name)) continue;
+                result.add(n.name);
+                for (const lnk of (n.targetLinks ?? []) as LayoutLink[]) {
+                    queue.push(lnk.source as LayoutNode);
+                }
+            }
+            return result;
+        };
+
+        const refreshHighlight = (): void => {
+            highlightSet   = new Set<string>();
+            linkAnchorNode = "";
+            if (this.selectionType === "none") return;
+
+            if (this.selectionType === "node") {
+                // Always include the clicked node itself
+                highlightSet.add(this.selectedKey);
+                if (highlightDirStr !== "upstream") {
+                    for (const v of bfsForward(this.selectedKey))  highlightSet.add(v);
+                }
+                if (highlightDirStr !== "downstream") {
+                    for (const v of bfsBackward(this.selectedKey)) highlightSet.add(v);
+                }
+            } else {
+                // Link click: BFS from the appropriate end, anchor the other end
+                const sep     = this.selectedKey.indexOf("\x00");
+                const srcName = this.selectedKey.slice(0, sep);
+                const tgtName = this.selectedKey.slice(sep + 1);
+                if (highlightDirStr === "downstream") {
+                    linkAnchorNode = srcName;
+                    for (const v of bfsForward(tgtName))  highlightSet.add(v);
+                } else if (highlightDirStr === "upstream") {
+                    linkAnchorNode = tgtName;
+                    for (const v of bfsBackward(srcName)) highlightSet.add(v);
+                } else {
+                    // both: BFS in both directions from both ends
+                    for (const v of bfsForward(tgtName))  highlightSet.add(v);
+                    for (const v of bfsBackward(srcName)) highlightSet.add(v);
+                    highlightSet.add(srcName);
+                    highlightSet.add(tgtName);
                 }
             }
         };
 
         // Seed with any selection state carried over from the previous render
-        refreshDownstream();
+        refreshHighlight();
 
         const nodeOpacity = (d: LayoutNode): number => {
             if (this.selectionType === "none") return 1;
-            // For a ribbon click the source node is upstream but still highlighted
-            if (d.name === linkSourceNode) return 1;
-            return downstreamSet.has(d.name) ? 1 : 0.15;
+            if (d.name === linkAnchorNode) return 1;
+            return highlightSet.has(d.name) ? 1 : 0.15;
         };
 
         // ── Source contribution propagation ────────────────────────────────────
@@ -1035,7 +1099,8 @@ export class Visual implements IVisual {
             const tgt = (d.link.target as LayoutNode).name;
             const lk  = `${src}\x00${tgt}`;
             if (lk === this.selectedKey) return linkOpacity;
-            return downstreamSet.has(src) ? linkOpacity : linkOpacity * 0.15;
+            // Show link only when both its endpoints are in the highlight set
+            return (highlightSet.has(src) && highlightSet.has(tgt)) ? linkOpacity : linkOpacity * 0.15;
         };
 
         // Ribbon color: color-source column label (colorBySource) or immediate source label.
@@ -1059,7 +1124,7 @@ export class Visual implements IVisual {
 
         linkPaths
             .append("title")
-            .text(d => `${(d.link.source as LayoutNode).label} \u2192 ${(d.link.target as LayoutNode).label}\n${fmtVal(d.link.value)}`);
+            .text(d => `${(d.link.source as LayoutNode).label} \u2192 ${(d.link.target as LayoutNode).label}\n${fmtLabel(d.link.value)}`);
 
         linkPaths.on("click", (event: MouseEvent, d: SubRibbon) => {
             const lk = `${(d.link.source as LayoutNode).name}\x00${(d.link.target as LayoutNode).name}`;
@@ -1073,10 +1138,21 @@ export class Visual implements IVisual {
                 this.selectedKey   = lk;
                 this.selectionManager.select(linkSelIds.get(lk) ?? [], event.ctrlKey || event.metaKey);
             }
-            refreshDownstream();
+            refreshHighlight();
             nodeGroups.select<SVGRectElement>("rect").attr("opacity", nodeOpacity);
             linkPaths.attr("opacity", linkOpacityFn);
             event.stopPropagation();
+        });
+
+        linkPaths.on("contextmenu", (event: MouseEvent, d: SubRibbon) => {
+            event.preventDefault();
+            event.stopPropagation();
+            const lk  = `${(d.link.source as LayoutNode).name}\x00${(d.link.target as LayoutNode).name}`;
+            const ids = linkSelIds.get(lk) ?? [];
+            this.selectionManager.showContextMenu(
+                ids[0] ?? {} as powerbi.extensibility.ISelectionId,
+                { x: event.clientX, y: event.clientY }
+            );
         });
 
         // ── Nodes ─────────────────────────────────────────────────────────────
@@ -1100,7 +1176,7 @@ export class Visual implements IVisual {
             .attr("stroke-width", 0.5)
             .attr("opacity", nodeOpacity)
             .append("title")
-            .text(d => `${d.label}\n${fmtVal(d.value ?? 0)}`);
+            .text(d => `${d.label}\n${fmtLabel(d.value ?? 0)}`);
 
         nodeGroups.on("click", (event: MouseEvent, d: LayoutNode) => {
             if (this.selectionType === "node" && this.selectedKey === d.name) {
@@ -1113,10 +1189,20 @@ export class Visual implements IVisual {
                 this.selectedKey   = d.name;
                 this.selectionManager.select(nodeSelIds.get(d.name) ?? [], event.ctrlKey || event.metaKey);
             }
-            refreshDownstream();
+            refreshHighlight();
             nodeGroups.select<SVGRectElement>("rect").attr("opacity", nodeOpacity);
             linkPaths.attr("opacity", linkOpacityFn);
             event.stopPropagation();
+        });
+
+        nodeGroups.on("contextmenu", (event: MouseEvent, d: LayoutNode) => {
+            event.preventDefault();
+            event.stopPropagation();
+            const ids = nodeSelIds.get(d.name) ?? [];
+            this.selectionManager.showContextMenu(
+                ids[0] ?? {} as powerbi.extensibility.ISelectionId,
+                { x: event.clientX, y: event.clientY }
+            );
         });
 
         // ── Name labels ───────────────────────────────────────────────────────
@@ -1396,7 +1482,7 @@ export class Visual implements IVisual {
                 .attr("font-style",      vItalic   ? "italic"    : "normal")
                 .attr("text-decoration", vUnderline ? "underline" : "none")
                 .attr("fill",            vFontColor)
-                .text(d => fmtVal(d.value ?? 0));
+                .text(d => fmtLabel(d.value ?? 0));
 
             if (valueBgActive) {
                 valueGs.each(function () {
@@ -1444,7 +1530,7 @@ export class Visual implements IVisual {
                 .attr("font-style",      vItalic   ? "italic"    : "normal")
                 .attr("text-decoration", vUnderline ? "underline" : "none")
                 .attr("fill",            vFontColor)
-                .text((d: LayoutLink) => fmtVal(d.value));
+                .text((d: LayoutLink) => fmtLabel(d.value));
 
             if (valueBgActive) {
                 ribbonValueGs.each(function () {

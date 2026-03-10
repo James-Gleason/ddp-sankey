@@ -15,6 +15,12 @@ const nodeSortItems = [
     { displayName: "Alphabetical",       value: "alpha"      }
 ];
 
+const highlightDirItems = [
+    { displayName: "Downstream", value: "downstream" },
+    { displayName: "Upstream",   value: "upstream"   },
+    { displayName: "Both",       value: "both"       }
+];
+
 class NodeSettingsCard extends formattingSettings.SimpleCard {
     public name: string = "nodeSettings";
     public displayName: string = "Nodes";
@@ -41,7 +47,15 @@ class NodeSettingsCard extends formattingSettings.SimpleCard {
         value: nodeSortItems[0]   // default: Default (d3 natural order)
     });
 
-    public slices = [this.nodeWidth, this.nodePadding, this.nodeSort];
+    public highlightDir = new formattingSettings.ItemDropdown({
+        name: "highlightDir",
+        displayName: "Highlight Direction",
+        description: "Which direction to highlight when a node or flow is selected — Downstream follows flows forward, Upstream traces flows backward, Both highlights everything connected",
+        items: highlightDirItems,
+        value: highlightDirItems[0]   // default: Downstream
+    });
+
+    public slices = [this.nodeWidth, this.nodePadding, this.nodeSort, this.highlightDir];
 }
 
 // ─── Flows card ───────────────────────────────────────────────────────────────
@@ -213,6 +227,12 @@ const targetItems = [
     { displayName: "Flows", value: "ribbons" }
 ];
 
+const labelFormatItems = [
+    { displayName: "Value",        value: "value"   },
+    { displayName: "% of Total",   value: "percent" },
+    { displayName: "Value and %",  value: "both"    }
+];
+
 class ValueSettingsCard extends formattingSettings.SimpleCard {
     public name:        string = "valueSettings";
     public displayName: string = "Data Labels";
@@ -228,6 +248,14 @@ class ValueSettingsCard extends formattingSettings.SimpleCard {
         displayName: "Show On",
         items: targetItems,
         value: targetItems[0]     // default: Nodes
+    });
+
+    public labelFormat = new formattingSettings.ItemDropdown({
+        name: "labelFormat",
+        displayName: "Format",
+        description: "Display raw value, percentage of the grand total, or both",
+        items: labelFormatItems,
+        value: labelFormatItems[0]   // default: Value
     });
 
     public position = new formattingSettings.ItemDropdown({
@@ -324,7 +352,7 @@ class ValueSettingsCard extends formattingSettings.SimpleCard {
     });
 
     public topLevelSlice = this.show;
-    public slices = [this.target, this.position, this.alignment, this.displayUnits, this.decimalPlaces, this.fontControl, this.fontColor, this.showBackground, this.backgroundColor, this.backgroundTransparency];
+    public slices = [this.target, this.labelFormat, this.position, this.alignment, this.displayUnits, this.decimalPlaces, this.fontControl, this.fontColor, this.showBackground, this.backgroundColor, this.backgroundTransparency];
 }
 
 // ─── Root model ───────────────────────────────────────────────────────────────

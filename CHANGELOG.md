@@ -12,6 +12,30 @@ The `.pbiviz` file for each release is attached to the corresponding [GitHub Rel
 
 ---
 
+## [1.2.32-beta.1] — 2026-03-10
+
+### Added
+- **Context menu** — right-clicking any node, flow, or the empty canvas now opens
+  the native Power BI context menu (drill-through, spotlight, etc.).  Previously
+  right-clicking showed the browser's default context menu with no Power BI
+  actions.
+- **Highlight Direction** (Nodes card) — new dropdown controlling which direction
+  is emphasised when a node or flow is selected:
+  - `Downstream` (default) — highlights the selected element and all nodes/flows
+    reachable going forward through the diagram, matching the previous behaviour.
+  - `Upstream` — highlights the selected element and all nodes/flows that feed
+    into it going backward.
+  - `Both` — highlights everything connected in either direction.
+- **Data Label Format** (Data Labels card) — new dropdown controlling the text
+  shown in node and flow value labels:
+  - `Value` (default) — raw formatted number, same as before.
+  - `% of Total` — value expressed as a percentage of the grand total
+    (sum of all depth-0 node values).
+  - `Value and %` — both the formatted number and percentage, e.g. `1.2K (34.5%)`.
+  Tooltips and the node-width auto-sizing calculation both honour the chosen format.
+
+---
+
 ## [1.2.31-beta.1] — 2026-03-10
 
 ### Added

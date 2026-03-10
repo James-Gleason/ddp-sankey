@@ -56,6 +56,16 @@
               { "displayName": "Alphabetical",       "value": "alpha"      }
             ]
           }
+        },
+        "highlightDir": {
+          "displayName": "Highlight Direction",
+          "type": {
+            "enumeration": [
+              { "displayName": "Downstream", "value": "downstream" },
+              { "displayName": "Upstream",   "value": "upstream"   },
+              { "displayName": "Both",       "value": "both"       }
+            ]
+          }
         }
       }
     },
@@ -155,6 +165,16 @@
             "enumeration": [
               { "displayName": "Nodes", "value": "nodes"   },
               { "displayName": "Flows", "value": "ribbons" }
+            ]
+          }
+        },
+        "labelFormat": {
+          "displayName": "Format",
+          "type": {
+            "enumeration": [
+              { "displayName": "Value",       "value": "value"   },
+              { "displayName": "% of Total",  "value": "percent" },
+              { "displayName": "Value and %", "value": "both"    }
             ]
           }
         },
