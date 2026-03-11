@@ -450,6 +450,7 @@ export class Visual implements IVisual {
         const linkOpacity    = Math.min(1, Math.max(0, linkSettings.linkOpacity.value / 100));
         const minFlowValue   = Math.max(0, linkSettings.minFlowValue.value ?? 0);
         const colorBySource  = linkSettings.colorBySource.value;
+        const gradientFlows  = linkSettings.gradientFlows.value ?? false;
 
         const showLabels  = labelSettings.show.value;
         const fontFamily  = labelSettings.fontControl.fontFamily.value;
@@ -1107,6 +1108,41 @@ export class Visual implements IVisual {
         const ribbonColor = (d: SubRibbon): string =>
             color(d.srcLabel || (d.link.source as LayoutNode).label);
 
+        // ── Flow gradient fills ────────────────────────────────────────────────
+        // When gradientFlows is on each ribbon gets an SVG linearGradient that
+        // fades from its source color (left edge) to its target node color (right
+        // edge).  Gradients are deduplicated by (srcColor, tgtColor) and stored
+        // in a shared <defs> element prepended to the container.
+        // gradientUnits="objectBoundingBox" keeps the direction correct regardless
+        // of the ribbon's position or height in the viewport.
+        const gradMap  = new Map<string, string>();
+        let   gradIdx  = 0;
+        const gradDefs = gradientFlows
+            ? this.container.append<SVGDefsElement>("defs")
+            : null;
+
+        const getFillAttr = (d: SubRibbon): string => {
+            const srcColor = ribbonColor(d);
+            if (!gradDefs) return srcColor;
+            const tgtColor = color((d.link.target as LayoutNode).label);
+            if (srcColor === tgtColor) return srcColor;
+            const key = `${srcColor}|${tgtColor}`;
+            if (!gradMap.has(key)) {
+                const id = `${this.instanceUid}-gr-${gradIdx++}`;
+                gradMap.set(key, id);
+                const g = gradDefs.append("linearGradient")
+                    .attr("id",            id)
+                    .attr("x1",            "0%")
+                    .attr("y1",            "0%")
+                    .attr("x2",            "100%")
+                    .attr("y2",            "0%")
+                    .attr("gradientUnits", "objectBoundingBox");
+                g.append("stop").attr("offset", "0%")  .attr("stop-color", srcColor);
+                g.append("stop").attr("offset", "100%").attr("stop-color", tgtColor);
+            }
+            return `url(#${gradMap.get(key)!})`;
+        };
+
         // ── Links ─────────────────────────────────────────────────────────────
         // Each SubRibbon is one filled closed path.  In normal mode this is one
         // path per link; in "Color by Source" mode each link emits N paths so
@@ -1118,7 +1154,7 @@ export class Visual implements IVisual {
             .data(subRibbons)
             .join("path")
             .attr("d",       d => subRibbonPath(d))
-            .attr("fill",    d => ribbonColor(d))
+            .attr("fill",    d => getFillAttr(d))
             .attr("opacity", d => linkOpacityFn(d))
             .style("cursor", "pointer");
 

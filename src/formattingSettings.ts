@@ -100,7 +100,14 @@ class LinkSettingsCard extends formattingSettings.SimpleCard {
         value: { displayName: "First Column", value: "__default__" }
     });
 
-    public slices = [this.linkOpacity, this.minFlowValue, this.colorBySource, this.colorSourceLevel];
+    public gradientFlows = new formattingSettings.ToggleSwitch({
+        name: "gradientFlows",
+        displayName: "Gradient Flows",
+        description: "Fade each ribbon from its source node color to its target node color",
+        value: false
+    });
+
+    public slices = [this.linkOpacity, this.minFlowValue, this.colorBySource, this.colorSourceLevel, this.gradientFlows];
 }
 
 // ─── Labels card ──────────────────────────────────────────────────────────────

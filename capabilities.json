@@ -91,6 +91,10 @@
               { "displayName": "First Column", "value": "__default__" }
             ]
           }
+        },
+        "gradientFlows": {
+          "displayName": "Gradient Flows",
+          "type": { "bool": true }
         }
       }
     },

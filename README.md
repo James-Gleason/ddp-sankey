@@ -24,6 +24,7 @@ Drag two or more columns into **Path Levels** and a numeric measure into **Value
 | **Field-well ordering** | Top-to-bottom order in the Path Levels field well maps left-to-right in the visual |
 | **Tapered flows** | Each flow end independently matches the allocated height on that node face, tapering smoothly between source and target widths |
 | **Follow Flow Path labels** | Node labels can curve to follow the arc of their primary flow rather than staying horizontal |
+| **Gradient Flows** | Ribbons fade from source node color to target node color |
 | **Context menu** | Right-click any node, flow, or the empty canvas to open the Power BI context menu (drill-through, spotlight, etc.) |
 | **Highlight Direction** | Choose Downstream, Upstream, or Both when selecting nodes/flows |
 | **% of Total labels** | Data labels can show raw value, percentage of grand total, or both |
@@ -43,6 +44,7 @@ Drag two or more columns into **Path Levels** and a numeric measure into **Value
 - **Minimum Flow Value** — flows below this value are excluded from the diagram entirely (default 0 = show all)
 - **Color by Source** — toggle to color all flows by a selected column's nodes, making flows visually traceable across all stages
 - **Color Source Column** — dropdown (only active when Color by Source is on) populated with the actual field names from the Path Levels well; pick any column to use as the color anchor
+- **Gradient Flows** — fades each ribbon from its source node color to its target node color (compatible with Color by Source)
 
 ### Labels
 - **Show Labels** — toggle node name labels on/off
@@ -87,7 +89,7 @@ Node.js is required. npm is not in the default shell PATH on the build machine, 
 powershell.exe -ExecutionPolicy Bypass -File "build.ps1"
 ```
 
-Output: `dist\DDP_Sankey_1.2.32.0.pbiviz` (filename always matches the current version)
+Output: `dist\DDP_Sankey_1.2.33.0.pbiviz` (filename always matches the current version)
 
 Install the `.pbiviz` in Power BI Desktop via **Home → Import a visual from a file**.
 

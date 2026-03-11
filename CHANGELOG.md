@@ -12,6 +12,16 @@ The `.pbiviz` file for each release is attached to the corresponding [GitHub Rel
 
 ---
 
+## [1.2.33-beta.1] — 2026-03-10
+
+### Added
+- **Gradient Flows** (Flows card) — new toggle that fades each ribbon from its
+  source node color to its target node color using an SVG `linearGradient`.
+  Works in both normal and Color by Source modes.  Gradients are deduplicated
+  by color pair, so the `<defs>` stays compact even for large diagrams.
+
+---
+
 ## [1.2.32-beta.1] — 2026-03-10
 
 ### Added
