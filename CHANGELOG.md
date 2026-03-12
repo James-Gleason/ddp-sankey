@@ -12,6 +12,16 @@ The `.pbiviz` file for each release is attached to the corresponding [GitHub Rel
 
 ---
 
+## [1.2.38-beta.1] — 2026-03-11
+
+### Fixed
+- **Hide Blank Nodes** — flows now terminate at the last real (non-blank) node.
+  A link to a blank node is skipped unless a real value appears further ahead in
+  the same row (meaning the blank is a gap to bridge, not a termination point).
+  Blank nodes are never drawn as terminal endpoints.
+
+---
+
 ## [1.2.37-beta.1] — 2026-03-10
 
 ### Fixed
