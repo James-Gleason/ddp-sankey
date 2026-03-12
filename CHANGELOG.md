@@ -12,6 +12,19 @@ The `.pbiviz` file for each release is attached to the corresponding [GitHub Rel
 
 ---
 
+## [1.2.40-beta.1] — 2026-03-11
+
+### Fixed
+- **Hide Blank Nodes** — root cause fix: switched d3-sankey node alignment from
+  `sankeyJustify` to `sankeyLeft`.  The default `sankeyJustify` places any sink
+  node (no outgoing links) at the *last* column; after blank links are skipped,
+  real terminal nodes incorrectly snapped to the rightmost column.  `sankeyLeft`
+  places every node at its natural depth (longest incoming path), so a flow that
+  ends at level 2 now stops visually at column 2 regardless of how many columns
+  the chart has overall.
+
+---
+
 ## [1.2.39-beta.1] — 2026-03-11
 
 ### Fixed

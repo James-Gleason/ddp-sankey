@@ -12,6 +12,7 @@ import { VisualFormattingSettingsModel } from "./formattingSettings";
 
 import {
     sankey,
+    sankeyLeft,
     SankeyNode,
     SankeyLink,
     SankeyGraph
@@ -681,6 +682,7 @@ export class Visual implements IVisual {
         // Reusable sankey factory — applies node sort and padding consistently in both passes.
         const makeSankeyLayout = (nw: number) => {
             const sk = sankey<NodeDatum, LinkDatum>()
+                .nodeAlign(sankeyLeft)
                 .nodeWidth(nw)
                 .nodePadding(nodePadding)
                 .extent([[0, 0], [innerW, innerH]]);
