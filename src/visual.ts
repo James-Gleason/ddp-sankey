@@ -643,10 +643,21 @@ export class Visual implements IVisual {
         // When skipBlanks is on, rows where level 1 is blank produce no drawn
         // links, so the level-0 source node is never added to nodeSet.  Such
         // nodes represent real data with no downstream activity (e.g. products
-        // being discontinued).  Find them and add them as isolated nodes so they
-        // appear as visible bars in column 0 with no outgoing flows.
-        // fixedValue tells d3-sankey to size the bar from the accumulated row
-        // total rather than from (empty) link widths.
+        // being discontinued).
+        //
+        // Strategy: pass isolated nodes to d3-sankey with two tricks:
+        //   1. fixedValue = fv    → d3-sankey sizes the bar from the real value,
+        //                           not from (empty) link widths.
+        //   2. phantom link (ε)   → a near-zero-value link to a shared dummy
+        //                           sink gives d3-sankey enough topology to
+        //                           position the node in column 0 alongside the
+        //                           other level-0 nodes using its normal vertical
+        //                           distribution algorithm.
+        // The phantom sink node and its phantom links are stripped from the graph
+        // immediately after layout (before reStackRibbons) so they are never
+        // rendered.  The ε link value (0.001) is tiny enough that the phantom
+        // sink takes negligible space in whatever column d3-sankey places it.
+        const phantomSinkKey     = "__phantom_sink__";   // no \x01 → enforceNodeColumns skips it
         const isolatedNodeValues = new Map<string, number>();
         if (skipBlanks) {
             for (let r = 0; r < rowCount; r++) {
@@ -665,7 +676,9 @@ export class Visual implements IVisual {
                     nodeSelIds.get(key0)!.push(selId);
                 }
             }
+            // Add isolated nodes + phantom sink to nodeSet so d3-sankey sees them.
             for (const key of isolatedNodeValues.keys()) nodeSet.add(key);
+            if (isolatedNodeValues.size > 0) nodeSet.add(phantomSinkKey);
         }
 
         if (linkMap.size === 0 && isolatedNodeValues.size === 0) {
@@ -685,8 +698,9 @@ export class Visual implements IVisual {
                 name:  key,
                 label: blankSep === -1 ? afterLevel : afterLevel.slice(0, blankSep)
             };
-            // Isolated source nodes need fixedValue so d3-sankey sizes their bar
-            // from the accumulated row total rather than (empty) link widths.
+            // Isolated source nodes: fixedValue overrides d3-sankey's link-sum
+            // so the bar is sized from the real accumulated row total, not from
+            // the near-zero phantom link value.
             const fv = isolatedNodeValues.get(key);
             if (fv !== undefined) datum.fixedValue = fv;
             return datum;
@@ -699,6 +713,18 @@ export class Visual implements IVisual {
             const tgtKey = key.slice(sep + 1);
             links.push({ source: nodeIndex.get(srcKey)!, target: nodeIndex.get(tgtKey)!, value });
         });
+
+        // Phantom links: each isolated source node → shared phantom sink.
+        // Near-zero value (0.001) lets d3-sankey treat the isolated node as a
+        // source and place it in column 0 alongside other level-0 nodes.
+        // fixedValue on the NodeDatum ensures d3-sankey uses the real value
+        // for bar sizing rather than this epsilon link value.
+        if (isolatedNodeValues.size > 0) {
+            const phantomTgtIdx = nodeIndex.get(phantomSinkKey)!;
+            for (const [key] of isolatedNodeValues) {
+                links.push({ source: nodeIndex.get(key)!, target: phantomTgtIdx, value: 0.001 });
+            }
+        }
 
         // Minimum ribbon height: tall enough to contain the largest active text label.
         // When a pill background is enabled the ribbon must also accommodate the pill
@@ -782,6 +808,8 @@ export class Visual implements IVisual {
         const fmtVal = (v: number) => formatDataValue(v, resolvedUnit, vDecimalPlaces);
 
         // Grand total = sum of all depth-0 (leftmost column) node values.
+        // Isolated source nodes are in d3-sankey (fixedValue + phantom link),
+        // so their values appear in graph.nodes at depth=0 and are counted here.
         // Used for percentage calculations in data labels.
         const totalValue = (graph.nodes as LayoutNode[])
             .filter(n => (n.depth ?? 0) === 0)
@@ -832,6 +860,32 @@ export class Visual implements IVisual {
                 return;
             }
             enforceNodeColumns(graph, levelCats.length, effectiveNodeWidth, innerW);
+        }
+
+        // ── Strip phantom sink + phantom links ────────────────────────────────
+        // The phantom sink and its near-zero incoming links served only to give
+        // d3-sankey enough topology to position isolated source nodes in column 0.
+        // Remove them in-place now so they are invisible to reStackRibbons,
+        // resolveColumnOverlaps, the ribbon builder, and the node renderer.
+        if (isolatedNodeValues.size > 0) {
+            const gLinks = graph.links as LayoutLink[];
+            for (let i = gLinks.length - 1; i >= 0; i--) {
+                if ((gLinks[i].target as LayoutNode).name === phantomSinkKey) gLinks.splice(i, 1);
+            }
+            // Clean up sourceLinks on each isolated node
+            for (const [key] of isolatedNodeValues) {
+                const isoNd = (graph.nodes as LayoutNode[]).find(n => n.name === key);
+                if (isoNd?.sourceLinks) {
+                    const sl = isoNd.sourceLinks as LayoutLink[];
+                    for (let i = sl.length - 1; i >= 0; i--) {
+                        if ((sl[i].target as LayoutNode).name === phantomSinkKey) sl.splice(i, 1);
+                    }
+                }
+            }
+            const gNodes = graph.nodes as LayoutNode[];
+            for (let i = gNodes.length - 1; i >= 0; i--) {
+                if (gNodes[i].name === phantomSinkKey) gNodes.splice(i, 1);
+            }
         }
 
         // ── Re-stack ribbons to honour minRibbonHeight ────────────────────────
