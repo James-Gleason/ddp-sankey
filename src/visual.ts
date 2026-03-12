@@ -535,38 +535,6 @@ export class Visual implements IVisual {
 
         this.currentLinkOpacity = linkOpacity;
 
-        // ── Legend color map (from second dataView, isolated from main query) ────
-        // The second dataViewMapping (pathLevels + legendField, no value) provides a
-        // separate query that does NOT affect the main data aggregation or layout.
-        // We build the map here — before any colorPalette.getColor() calls — so that
-        // legend values are pre-registered first, matching the palette slot sequence
-        // used by native Power BI visuals when the same field is their Legend.
-        const legendColorMap = new Map<string, string>();  // level-0 label → hex color
-        const legendCategorical = options.dataViews?.[1]?.categorical;
-        if (legendCategorical?.categories?.length) {
-            const lgLevelCats = legendCategorical.categories.filter(c => c.source.roles?.["pathLevels"]);
-            const lgLegendCat = legendCategorical.categories.find(c => c.source.roles?.["legendField"]);
-            if (lgLevelCats.length > 0 && lgLegendCat) {
-                const lgRowCount = lgLevelCats[0].values.length;
-                // Pass 1: pre-register legend values in first-appearance order.
-                const legendOrder: string[] = [];
-                const legendSeen  = new Set<string>();
-                for (let r = 0; r < lgRowCount; r++) {
-                    const lgv = String(lgLegendCat.values[r] ?? "").trim();
-                    if (lgv && !legendSeen.has(lgv)) { legendOrder.push(lgv); legendSeen.add(lgv); }
-                }
-                for (const lgv of legendOrder) this.host.colorPalette.getColor(lgv);
-                // Pass 2: map each level-0 label to its legend value's color.
-                for (let r = 0; r < lgRowCount; r++) {
-                    const lv0 = String(lgLevelCats[0].values[r] ?? "").trim();
-                    const lgv = String(lgLegendCat.values[r] ?? "").trim();
-                    if (lv0 && lgv && !legendColorMap.has(lv0)) {
-                        legendColorMap.set(lv0, this.host.colorPalette.getColor(lgv).value);
-                    }
-                }
-            }
-        }
-
         // ── Guard: no data ─────────────────────────────────────────────────────
         const dataView    = options.dataViews?.[0];
         const categorical = dataView?.categorical;
@@ -582,9 +550,13 @@ export class Visual implements IVisual {
             return;
         }
 
-        // categorical.categories is ordered by field-well position (top → left in visual).
-        // The main mapping only includes pathLevels so no filtering is needed here.
-        const levelCats = categorical.categories;
+        // Split categorical.categories by data role.
+        // pathLevels columns drive the hierarchy; legendField (optional, max 1) provides
+        // cross-visual color coordination when the same field is used as a Legend in
+        // a co-located native chart.
+        const levelCats = categorical.categories.filter(c => c.source.roles?.["pathLevels"]);
+        const legendCat = categorical.categories.find(c => c.source.roles?.["legendField"]) ?? null;
+
         if (levelCats.length < 2) {
             this.showError(width, height, "Add at least 2 Path Level columns and a Value.");
             return;
@@ -617,6 +589,41 @@ export class Visual implements IVisual {
         const nodeSelIds = new Map<string, powerbi.visuals.ISelectionId[]>();
         const linkSelIds = new Map<string, powerbi.visuals.ISelectionId[]>();
         const rowCount   = levelCats[0].values.length;
+
+        // ── Legend color map ──────────────────────────────────────────────────
+        // When a Color Legend field is mapped, build a map from level-0 label
+        // → palette color so that level-0 nodes (and any flows they colour)
+        // match the colors assigned to the same field in a co-located native
+        // visual (e.g. a Pie chart with the same Legend field).
+        //
+        // Power BI's colorPalette.getColor() is report-level: the same string
+        // key always returns the same color within a report session, and native
+        // visuals register legend values in first-appearance (row) order.  By
+        // pre-registering legend values here in the same order before making
+        // any other getColor() calls, we ensure the palette assignments align
+        // with those produced by the native visual.
+        const legendColorMap = new Map<string, string>();  // level-0 label → hex color
+        if (legendCat) {
+            // Pass 1: collect unique legend values in first-appearance order.
+            const legendOrder: string[] = [];
+            const legendSeen  = new Set<string>();
+            for (let r = 0; r < rowCount; r++) {
+                const lgv = String(legendCat.values[r] ?? "").trim();
+                if (lgv && !legendSeen.has(lgv)) { legendOrder.push(lgv); legendSeen.add(lgv); }
+            }
+            // Pre-register in canonical order before any other getColor() calls.
+            for (const lgv of legendOrder) this.host.colorPalette.getColor(lgv);
+
+            // Pass 2: map each level-0 label to its legend value's color.
+            // First-seen mapping wins (one level-0 label → one legend value).
+            for (let r = 0; r < rowCount; r++) {
+                const lv0 = String(levelCats[0].values[r] ?? "").trim();
+                const lgv = String(legendCat.values[r] ?? "").trim();
+                if (lv0 && lgv && !legendColorMap.has(lv0)) {
+                    legendColorMap.set(lv0, this.host.colorPalette.getColor(lgv).value);
+                }
+            }
+        }
 
         for (let r = 0; r < rowCount; r++) {
             const val = Number(valueSeries.values[r]) || 0;
@@ -745,6 +752,18 @@ export class Visual implements IVisual {
             const srcKey = key.slice(0, sep);
             const tgtKey = key.slice(sep + 1);
             links.push({ source: nodeIndex.get(srcKey)!, target: nodeIndex.get(tgtKey)!, value });
+        });
+
+        // Sort links by source→target node name so that ribbon stacking order on
+        // each node face is deterministic and independent of data row order.
+        // Without this, adding a legendField (which Power BI cross-groups with the
+        // path levels, potentially reordering rows) shifts which ribbon sits at the
+        // top vs bottom of a node, making the visual look different even though the
+        // link values and node positions are identical.
+        links.sort((a, b) => {
+            const na = `${nodeArray[a.source]}\x00${nodeArray[a.target]}`;
+            const nb = `${nodeArray[b.source]}\x00${nodeArray[b.target]}`;
+            return na < nb ? -1 : na > nb ? 1 : 0;
         });
 
         // Phantom links: each isolated source node → shared phantom sink.
